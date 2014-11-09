@@ -123,7 +123,7 @@ ALL_DATA = dict(
     zip_safe=True,
     scripts=[NAME_FILE + '.py'],
 
-    install_requires=['docopt', 'gitpython==0.3.2.RC1'],
+    install_requires=['docopt', 'gitpython>=0.3.2.RC1', 'coverage>=4.0a1'],
     tests_require=['pytest', 'pytest-cov'],
     cmdclass=dict(test=PyTest, testpdb=PyTestPdb, testcovweb=PyTestCovWeb, style=CmdStyle, lint=CmdLint),
 
