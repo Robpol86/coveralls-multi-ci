@@ -62,7 +62,7 @@ class PyTest(test):
 
 
 class PyTestPdb(PyTest):
-    TEST_ARGS = ['--pdb', 'tests']
+    TEST_ARGS = ['--ipdb', 'tests']
 
 
 class PyTestCovWeb(PyTest):
@@ -123,7 +123,7 @@ ALL_DATA = dict(
     zip_safe=True,
     scripts=[NAME_FILE + '.py'],
 
-    install_requires=['docopt', 'gitpython>=0.3.2.RC1', 'coverage>=4.0a1'],
+    install_requires=['docopt', 'gitpython>=0.3.2.RC1', 'coverage'],
     tests_require=['pytest', 'pytest-cov'],
     cmdclass=dict(test=PyTest, testpdb=PyTestPdb, testcovweb=PyTestCovWeb, style=CmdStyle, lint=CmdLint),
 
