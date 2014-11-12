@@ -45,3 +45,9 @@ def test_feature_branch(repo_dir):
         )
     )
     assert expected == actual
+
+
+def test_no_repo(tmpdir):
+    repo_dir = str(tmpdir.join('no_repo').ensure(dir=True))
+
+    assert dict() == git_stats(repo_dir)
