@@ -45,7 +45,7 @@ import signal
 
 from coverage import coverage
 from docopt import docopt
-import git
+import pygit2
 
 __author__ = '@Robpol86'
 __license__ = 'MIT'
@@ -113,38 +113,60 @@ class Bamboo(GenericCI):
 def git_stats(repo_dir):
     """Generates a dictionary with metadata about the git repo.
 
+    Attempts to resolve branch name if it's HEAD to a tag or branch name if the last commit is referenced by just one
+    of either.
+
     Positional arguments:
     repo_dir -- root directory of the git repository.
 
     Returns:
     A nested dictionary whose structure matches the JSON data sent to the Coveralls API.
     """
-    # Open handle to the repo.
+    # Open handle to the repo and get basic data.
     try:
-        this_repo = git.Repo(repo_dir)
-    except git.InvalidGitRepositoryError:
-        logging.error('InvalidGitRepositoryError raised, probably not in a git repo.')
+        repo = pygit2.Repository(repo_dir)
+    except KeyError:
+        logging.error('KeyError raised from pygit2, probably not in a git repo.')
         return dict()
+    remotes = [dict(name=r.name.strip(), url=r.url.strip()) for r in repo.remotes]
+
+    # Get branches. One commit may be referenced by many branches.
+    branches = dict()  # dict(hex=[branch1, branch2, ...])
+    for branch in (repo.lookup_branch(r) for r in repo.listall_branches()):
+        branch_name = branch.branch_name
+        for hex_ in (l.oid_new for l in branch.log() if l.message.startswith('commit')):
+            if hex_ not in branches:
+                branches[hex_] = set()
+            branches[hex_].add(branch_name)
+
+    # Get tags. One commit may be referenced by many tags.
+    tags = dict()  # dict(hex=[tag1, tag2, ...])
+    for tag in (repo.lookup_reference(x) for x in repo.listall_references() if x.startswith('refs/tags')):
+        tag_name = tag.shorthand
+        tag_or_commit = repo[tag.target.hex]
+        hex_ = tag_or_commit.hex if tag_or_commit.type == pygit2.GIT_OBJ_COMMIT else repo[tag_or_commit.target].hex
+        if hex_ not in tags:
+            tags[hex_] = set()
+        tags[hex_].add(tag_name)
+
+    # Determine last commit.
+    head_commit = repo.head.peel()
+    if repo.head_is_detached and head_commit.hex in tags and len(tags[head_commit.hex]) == 1:
+        branch = next(iter(tags[head_commit.hex]))
+    elif repo.head_is_detached and head_commit.hex in branches and len(branches[head_commit.hex]) == 1:
+        branch = next(iter(branches[head_commit.hex]))
+    else:
+        branch = repo.head.shorthand
 
     # Get metadata.
     head = dict(
-        id=this_repo.rev_parse('HEAD').hexsha.strip(),
-        author_name=this_repo.head.commit.author.name.strip(),
-        author_email=this_repo.head.commit.author.email.strip(),
-        committer_name=this_repo.head.commit.committer.name.strip(),
-        committer_email=this_repo.head.commit.committer.email.strip(),
-        message=this_repo.head.commit.message.strip(),
+        id=head_commit.hex,
+        author_name=head_commit.author.name,
+        author_email=head_commit.author.email,
+        committer_name=head_commit.committer.name,
+        committer_email=head_commit.committer.email,
+        message=head_commit.message.strip(),
     )
-    branch = this_repo.head.name.strip()
-    remotes = [dict(name=r.name.strip(), url=r.url.strip()) for r in this_repo.remotes]
-
-    # Try to match sha to ref name if HEAD in detached state.
-    if branch == 'HEAD':
-        logging.debug('HEAD detached, attempting to find ref name manually.')
-        refs = dict((r.object.hexsha, r.name) for r in this_repo.refs)
-        if head['id'] in refs:
-            branch = refs[head['id']]
-            logging.debug('Changed branch name from "HEAD" to "{0}".'.format(branch))
 
     return dict(head=head, branch=branch, remotes=remotes)
 
