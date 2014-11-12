@@ -33,6 +33,8 @@ Options:
                         [default: cwd]
     -h --help           Show this screen.
     -q --quiet          Print nothing to console.
+    -s --source=FILE    Path to source code root directory.
+                        [default: cwd]
     -v --verbose        Print debug information to console.
     -V --version        Show version.
 """
@@ -61,8 +63,8 @@ class Local(object):
     SERVICE_NAME = 'coveralls_multi_ci'
 
     def __init__(self):
-        self.source_files = coverage_report(os.path.join(CWD, OPTIONS.get('--coverage')))
-        self.git = git_stats(CWD if OPTIONS.get('--git') == 'cwd' else OPTIONS.get('--git'))
+        self.source_files = coverage_report()
+        self.git = git_stats()
 
 
 class GenericCI(Local):
@@ -171,7 +173,7 @@ def git_stats(repo_dir):
     return dict(head=head, branch=branch, remotes=remotes)
 
 
-def coverage_report(coverage_file):
+def coverage_report(coverage_file, source_root):
     """Parse coverage file created before this script was executed.
 
     Looks like the author of Coverage doesn't want us subclassing his classes.
@@ -179,6 +181,7 @@ def coverage_report(coverage_file):
 
     Positional arguments:
     coverage_file -- file path to the coverage file.
+    source_root -- root directory of the project's source code.
 
     Returns:
     List of dicts, each dict is one file and each dict holds API compatible coverage data.
@@ -201,7 +204,7 @@ def coverage_report(coverage_file):
         for i in analysis[1]:
             file_coverage[i - 1] = 0
 
-        source_files.append(dict(name=file_path.replace(CWD, ''), source=source_code, coverage=file_coverage))
+        source_files.append(dict(name=file_path.replace(source_root, ''), source=source_code, coverage=file_coverage))
 
     return source_files
 
@@ -237,6 +240,15 @@ def post_to_api(instance):
 
 
 def main():
+    # First gather data about the git repo and test coverage.
+    logging.info('Gathering git repo and test coverage data.')
+    git_stats_result = git_stats(CWD if OPTIONS.get('--git') == 'cwd' else OPTIONS.get('--git'))
+    coverage_result = coverage_report(os.path.join(CWD, OPTIONS.get('--coverage')),
+                                      CWD if OPTIONS.get('--git') == 'cwd' else OPTIONS.get('--git'))
+    if not coverage_result:
+        logging.critical('Unable to find code coverage file.')
+        sys.exit(1)
+
     # Instantiate class relevant to the current CI. Also collects metadata about git and code coverage.
     logging.debug('Selecting CI class.')
     instance = select_ci()
