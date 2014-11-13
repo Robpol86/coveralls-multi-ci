@@ -186,6 +186,7 @@ def coverage_report(coverage_file, source_root):
     Returns:
     List of dicts, each dict is one file and each dict holds API compatible coverage data.
     """
+    source_root = source_root.rstrip('/') + '/'
     source_files = list()
     logging.debug('Loading coverage file: ' + coverage_file)
     cov = coverage(data_file=coverage_file)
