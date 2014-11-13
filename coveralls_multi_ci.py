@@ -40,6 +40,7 @@ Options:
 """
 
 from datetime import datetime
+import json
 import logging
 import os
 import sys
@@ -55,23 +56,63 @@ __version__ = '1.0.0'
 API_URL = 'https://coveralls.io/api/v1/jobs'
 CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
 OPTIONS = docopt(__doc__) if __name__ == '__main__' else dict()
+RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
 
 
 class Local(object):
     REPO_TOKEN = os.environ.get('COVERALLS_REPO_TOKEN')
-    RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
+    SERVICE_BRANCH = None
+    SERVICE_BUILD_URL = None
+    SERVICE_JOB_ID = None
     SERVICE_NAME = 'coveralls_multi_ci'
+    SERVICE_NUMBER = None
+    SERVICE_PULL_REQUEST = None
 
-    def __init__(self):
-        self.source_files = coverage_report()
-        self.git = git_stats()
+    @classmethod
+    def payload(cls, coverage_result, git_stats_result=None):
+        """Puts together environment variable data and coverage/git data into a final dict to be submitted to the API.
+
+        Positional arguments:
+        coverage_result -- return value of coverage_report(), which is a dict with each file's source code (the entire
+            source code), file name, and coverage information. Will be passed to the API unchanged.
+
+        Keyword arguments:
+        git_stats_result -- return value of git_stats(), may be an empty dict or None since API says it's optional. Is
+            a dict with some data about the git repo. Will be passed to the API unchanged.
+
+        Returns:
+        Final dict meant to be sent as a JSON to the API.
+        """
+        result = dict(service_name=cls.SERVICE_NAME, source_files=coverage_result, run_at=RUN_AT)
+
+        # Insert optional values.
+        optional = (
+            ('git', git_stats_result),
+            ('repo_token', cls.REPO_TOKEN),
+            ('service_branch', cls.SERVICE_BRANCH),
+            ('service_build_url', cls.SERVICE_BUILD_URL),
+            ('service_job_id', cls.SERVICE_JOB_ID),
+            ('service_number', cls.SERVICE_NUMBER),
+            ('service_pull_request', cls.SERVICE_PULL_REQUEST),
+        )
+        result.update((k, v) for k, v in optional if v)
+
+        # Validate.
+        if not cls.REPO_TOKEN and not all([cls.SERVICE_JOB_ID, cls.SERVICE_NAME]):
+            logging.error('Must have either repo_token set or both service_job_id and service_name set.')
+            logging.debug('repo_token: {0}'.format(cls.REPO_TOKEN))
+            logging.debug('service_job_id: {0}'.format(cls.SERVICE_JOB_ID))
+            logging.debug('service_name: {0}'.format(cls.SERVICE_NAME))
+            sys.exit(1)
+
+        return result
 
 
 class GenericCI(Local):
+    SERVICE_BRANCH = os.environ.get('CI_BRANCH')
+    SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
     SERVICE_NAME = os.environ.get('CI_NAME')
     SERVICE_NUMBER = os.environ.get('CI_BUILD_NUMBER')
-    SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
-    SERVICE_BRANCH = os.environ.get('CI_BRANCH')
     SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
 
@@ -211,32 +252,32 @@ def coverage_report(coverage_file, source_root):
 
 
 def select_ci():
-    """Instantiates the appropriate class and returns the instance."""
+    """Selects the appropriate class and returns it."""
     if 'CI' in os.environ and 'TRAVIS' in os.environ:
-        instance = TravisCI()
+        ci_class = TravisCI
     elif 'CI' in os.environ and 'APPVEYOR' in os.environ:
-        instance = AppVeyor()
+        ci_class = AppVeyor
     elif 'CI' in os.environ and 'CIRCLECI' in os.environ:
-        instance = CircleCI()
+        ci_class = CircleCI
     elif 'CI' in os.environ and 'SEMAPHORE' in os.environ:
-        instance = Semaphore()
+        ci_class = Semaphore
     elif 'JENKINS_URL' in os.environ:
-        instance = JenkinsCI()
+        ci_class = JenkinsCI
     elif 'CI' in os.environ and os.environ.get('CI_NAME') == 'codeship':
-        instance = Codeship()
+        ci_class = Codeship
     elif 'bamboo.buildNumber' in os.environ:
-        instance = Bamboo()
+        ci_class = Bamboo
     else:
         logging.debug('Did not detect an officially supported CI. Trying the generic class.')
         if 'CI_NAME' in os.environ:
-            instance = GenericCI()
+            ci_class = GenericCI
         else:
             logging.warning('Resorting to Local class. Environment variable "CI_NAME" not defined.')
-            instance = Local()
-    return instance
+            ci_class = Local
+    return ci_class
 
 
-def post_to_api(instance):
+def post_to_api(payload_json):
     pass
 
 
@@ -250,16 +291,23 @@ def main():
         logging.critical('Unable to find code coverage file.')
         sys.exit(1)
 
-    # Instantiate class relevant to the current CI. Also collects metadata about git and code coverage.
-    logging.debug('Selecting CI class.')
-    instance = select_ci()
-    logging.info('Using {0}; Coverage of {0} file(s); {0} branch/tag.'.format(instance.__class__.__name__,
-                                                                              len(instance.source_files),
-                                                                              instance.git['branch']))
+    # Select class and get the payload.
+    ci_class = select_ci()
+    logging.info('Selected class: {0}'.format(ci_class.__class__.__name__))
+    payload = ci_class.payload(coverage_result=coverage_result, git_stats_result=git_stats_result)
+    logging.info('Coverage of {0} file{1}.'.format(len(payload['source_files']),
+                                                   '' if len(payload['source_files']) == 1 else 's'))
+    if payload.get('git'):
+        logging.info('Git branch/tag: {0}'.format(payload['git']['branch']))
+    payload_censored = payload.copy()
+    if payload['repo_token']:
+        payload_censored['repo_token'] = '*' * len(payload['repo_token'])
+    logging.debug('Entire payload excluding repo token:\n{0}'.format(payload_censored))
 
     # Ok now we just submit it to the API. That's it.
+    payload_json = json.dumps(payload)
     logging.info('POSTing to: {0}'.format(API_URL))
-    post_to_api(instance)
+    post_to_api(payload_json)
     logging.debug('Done.')
 
 
