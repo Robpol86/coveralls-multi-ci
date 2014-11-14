@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from coveralls_multi_ci import coverage_report
 
 CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
@@ -7,9 +9,11 @@ CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
 
 def test_no_file(tmpdir):
     coverage_file = tmpdir.join('coverage')
-    assert list() == coverage_report(str(coverage_file), '')  # File does not exist.
+    with pytest.raises(RuntimeError):
+        coverage_report(str(coverage_file), '')  # File does not exist.
     coverage_file.ensure(file=True)
-    assert list() == coverage_report(str(coverage_file), '')  # Empty file.
+    with pytest.raises(RuntimeError):
+        coverage_report(str(coverage_file), '')  # Empty file.
 
 
 def test_coverage_script_partial():
@@ -19,7 +23,6 @@ def test_coverage_script_partial():
 
     assert 1 == len(coverage_result)
     assert 'script.py' == coverage_result[0]['name']
-    assert len(coverage_result[0]['source'].splitlines()) == len(coverage_result[0]['coverage'])
     assert 0 in coverage_result[0]['coverage']
     assert 1 in coverage_result[0]['coverage']
 
@@ -31,7 +34,6 @@ def test_coverage_script_full():
 
     assert 1 == len(coverage_result)
     assert 'script.py' == coverage_result[0]['name']
-    assert len(coverage_result[0]['source'].splitlines()) == len(coverage_result[0]['coverage'])
     assert 0 not in coverage_result[0]['coverage']
     assert 1 in coverage_result[0]['coverage']
 
@@ -48,7 +50,6 @@ def test_coverage_project_partial():
         if coverage['name'].endswith('__init__.py'):
             assert 0 == len(coverage['coverage'])
         else:
-            assert len(coverage['source'].splitlines()) == len(coverage['coverage'])
             assert 0 in coverage['coverage']
             assert 1 in coverage['coverage']
 
@@ -65,6 +66,5 @@ def test_coverage_project_full():
         if coverage['name'].endswith('__init__.py'):
             assert 0 == len(coverage['coverage'])
         else:
-            assert len(coverage['source'].splitlines()) == len(coverage['coverage'])
             assert 0 not in coverage['coverage']
             assert 1 in coverage['coverage']

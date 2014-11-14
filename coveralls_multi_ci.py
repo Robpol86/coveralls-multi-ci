@@ -32,6 +32,10 @@ Options:
     -g --git=DIR        Path to the root git repo directory.
                         [default: cwd]
     -h --help           Show this screen.
+    --no-delete         Don't delete the temporary payload file after POSTing.
+    -o --output=FILE    Temporary payload file to write/read. Dumps all source
+                        code into this file and reads it during POST to API.
+                        [default: coveralls_multi_ci_payload.txt]
     -q --quiet          Print nothing to console.
     -s --source=FILE    Path to source code root directory.
                         [default: cwd]
@@ -39,12 +43,14 @@ Options:
     -V --version        Show version.
 """
 
+from base64 import b64encode, b64decode
 from datetime import datetime
 import json
 import logging
 import os
-import sys
+import re
 import signal
+import sys
 
 from coverage import coverage
 from docopt import docopt
@@ -53,8 +59,9 @@ import pygit2
 __author__ = '@Robpol86'
 __license__ = 'MIT'
 __version__ = '1.0.0'
+_RE_SPLIT = re.compile(r'"PLACEHOLDER_(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?_"')
 API_URL = 'https://coveralls.io/api/v1/jobs'
-CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
+CWD = os.getcwd()
 OPTIONS = docopt(__doc__) if __name__ == '__main__' else dict()
 RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
 
@@ -103,7 +110,7 @@ class Local(object):
             logging.debug('repo_token: {0}'.format(cls.REPO_TOKEN))
             logging.debug('service_job_id: {0}'.format(cls.SERVICE_JOB_ID))
             logging.debug('service_name: {0}'.format(cls.SERVICE_NAME))
-            sys.exit(1)
+            raise RuntimeError('Must have either repo_token set or both service_job_id and service_name set.')
 
         return result
 
@@ -220,13 +227,21 @@ def coverage_report(coverage_file, source_root):
     Looks like the author of Coverage doesn't want us subclassing his classes.
     http://nedbatchelder.com/blog/201409/how_should_i_distribute_coveragepy_alphas.html
 
+    To avoid loading entire project's source code in memory, base64 encoded placeholders are used.
+
+    Raises:
+    RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
+
     Positional arguments:
     coverage_file -- file path to the coverage file.
-    source_root -- root directory of the project's source code.
+    source_root -- absolute path to root directory of the project's source code.
 
     Returns:
     List of dicts, each dict is one file and each dict holds API compatible coverage data.
     """
+    if not coverage_file:
+        logging.error('No coverage file specified.')
+        raise RuntimeError('No coverage file specified.')
     source_root = source_root.rstrip('/') + '/'
     source_files = list()
     logging.debug('Loading coverage file: ' + coverage_file)
@@ -234,21 +249,75 @@ def coverage_report(coverage_file, source_root):
     cov.load()
 
     for file_path in cov.data.measured_files():
-        logging.debug('Found coverage for: ' + file_path)
+        logging.debug('Found coverage for: {0}'.format(file_path))
+        if not os.path.isfile(file_path):
+            logging.error('Source file not found: {0}'.format(file_path))
+            raise RuntimeError('Source file not found: {0}'.format(file_path))
+        if not file_path.startswith(source_root):
+            logging.error('Source file path {0} not within source root {1}.'.format(file_path, source_root))
+            raise RuntimeError('Source file path {0} not within source root {1}.'.format(file_path, source_root))
         with open(file_path, 'rU') as f:
-            source_code = f.read(104857600)  # read up to 100 MiB.
-            f.seek(0)
             file_coverage = [None for _ in f]  # List of Nones, same length as the number of lines in the file.
         analysis = cov.analysis(file_path)[1:-1]
+        fp_relative = file_path[len(source_root):]
+        fp_placeholder = 'PLACEHOLDER_{0}_'.format(b64encode(file_path))
 
         for i in analysis[0]:
             file_coverage[i - 1] = 1
         for i in analysis[1]:
             file_coverage[i - 1] = 0
 
-        source_files.append(dict(name=file_path.replace(source_root, ''), source=source_code, coverage=file_coverage))
+        source_files.append(dict(name=fp_relative, source=fp_placeholder, coverage=file_coverage))
+
+    if not source_files:
+        logging.error('No code coverage found.')
+        raise RuntimeError('No code coverage found.')
 
     return source_files
+
+
+def dump_json_to_disk(payload, target_file):
+    """Dumps payload to disk as a JSON. Replaces placeholders with the project's source code.
+
+    Raises:
+    RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
+    ValueError -- raised if arguments are invalid. Should never happen, treat it as a bug in caller.
+
+    Positional arguments:
+    payload -- dict of all data to be sent to the API minus the source code. Placeholders are used instead.
+    target_file -- file path to write dumped payload and source code to.
+
+    Returns:
+    Number of bytes the target_file is after dumping all data.
+    """
+    if not payload or not target_file:
+        raise ValueError('"payload" or "target_file" invalid.')
+    if os.path.exists(target_file):
+        logging.error('File already exists: {0}'.format(target_file))
+        raise RuntimeError('File already exists: {0}'.format(target_file))
+    if not os.path.isdir(os.path.dirname(target_file)):
+        logging.error("Parent directory doesn't exist: {0}".format(os.path.dirname(target_file)))
+        raise RuntimeError("Parent directory doesn't exist: {0}".format(os.path.dirname(target_file)))
+
+    payload_string = json.dumps(payload)
+    with open(target_file, 'w') as f_target:
+        logging.debug('Opened {0} for writing.'.format(target_file))
+        for segment in _RE_SPLIT.split(payload_string):
+            if not segment:
+                continue
+            if not _RE_SPLIT.match(segment):
+                f_target.write(segment)
+                continue
+            encoded = _RE_SPLIT.findall(segment)[0][0]
+            file_path = b64decode(encoded)
+            with open(file_path, 'rU') as f_source:
+                logging.debug('Opened {0} for reading.'.format(file_path))
+                json_handle = json.load(f_source)
+                json.dump(json_handle, f_target)
+            logging.debug('Closed {0}.'.format(file_path))
+    logging.debug('Closed {0}.'.format(target_file))
+
+    return os.path.getsize(target_file)
 
 
 def select_ci():
@@ -282,27 +351,41 @@ def post_to_api(payload_json):
 
 
 def main():
+    get_dir = lambda d: CWD if d == 'cwd' else os.path.abspath(os.path.expanduser(d))
+
     # First gather data about the git repo and test coverage.
+    repo_dir = get_dir(OPTIONS.get('--git'))
+    coverage_file = os.path.abspath(os.path.expanduser(OPTIONS.get('--coverage')))
+    source_root = get_dir(OPTIONS.get('--source'))
     logging.info('Gathering git repo and test coverage data.')
-    git_stats_result = git_stats(CWD if OPTIONS.get('--git') == 'cwd' else OPTIONS.get('--git'))
-    coverage_result = coverage_report(os.path.join(CWD, OPTIONS.get('--coverage')),
-                                      CWD if OPTIONS.get('--git') == 'cwd' else OPTIONS.get('--git'))
-    if not coverage_result:
-        logging.critical('Unable to find code coverage file.')
+    git_stats_result = git_stats(repo_dir)
+    try:
+        coverage_result = coverage_report(coverage_file, source_root)
+    except RuntimeError:
         sys.exit(1)
 
     # Select class and get the payload.
     ci_class = select_ci()
     logging.info('Selected class: {0}'.format(ci_class.__class__.__name__))
-    payload = ci_class.payload(coverage_result=coverage_result, git_stats_result=git_stats_result)
-    logging.info('Coverage of {0} file{1}.'.format(len(payload['source_files']),
-                                                   '' if len(payload['source_files']) == 1 else 's'))
+    try:
+        payload = ci_class.payload(coverage_result=coverage_result, git_stats_result=git_stats_result)
+    except RuntimeError:
+        sys.exit(1)
+    logging.info('Coverage of {0} file(s).'.format(len(payload['source_files'])))
     if payload.get('git'):
         logging.info('Git branch/tag: {0}'.format(payload['git']['branch']))
     payload_censored = payload.copy()
-    if payload['repo_token']:
+    if payload.get('repo_token'):
         payload_censored['repo_token'] = '*' * len(payload['repo_token'])
-    logging.debug('Entire payload excluding repo token:\n{0}'.format(payload_censored))
+    logging.debug('Placeholdered payload excluding repo token:\n{0}'.format(payload_censored))
+
+    # Dump payload to file and merge in actual source code.
+    target_file = os.path.abspath(os.path.expanduser(OPTIONS.get('--output')))
+    try:
+        byte_size = dump_json_to_disk(payload, target_file)
+    except RuntimeError:
+        sys.exit(1)
+    logging.info('Wrote {0} bytes to {1}'.format(byte_size, target_file))
 
     # Ok now we just submit it to the API. That's it.
     payload_json = json.dumps(payload)
