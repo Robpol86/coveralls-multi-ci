@@ -8,6 +8,8 @@ CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
 
 
 def test_no_file(tmpdir):
+    with pytest.raises(RuntimeError):
+        coverage_report('', '')
     coverage_file = tmpdir.join('coverage')
     with pytest.raises(RuntimeError):
         coverage_report(str(coverage_file), '')  # File does not exist.

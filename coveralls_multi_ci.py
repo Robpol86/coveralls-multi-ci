@@ -14,12 +14,13 @@ The following are CIs that are natively supported:
     Atlassian Bamboo
 
 If you're using a CI not in the list above, you'll need to define these
-environment variables:
-    CI_NAME --
-    CI_BUILD_NUMBER --
-    CI_BUILD_URL --
-    CI_BRANCH --
-    CI_PULL_REQUEST -- TODO
+environment variables (only CI_NAME is mandatory, others are recommended):
+    CI_NAME -- Continuous integration provider's name.
+    CI_BUILD_NUMBER -- build number, usually 0 is the first time that CI
+        builds/tests your project.
+    CI_BUILD_URL -- URL to the CI provider's build page.
+    CI_BRANCH -- git branch name being built (master, feature, tag's name).
+    CI_PULL_REQUEST -- pull request number or "false".
 
 Usage:
     coveralls_multi_ci submit [options]
@@ -43,7 +44,7 @@ Options:
     -V --version        Show version.
 """
 
-from base64 import b64encode, b64decode
+from base64 import b64decode, b64encode
 from datetime import datetime
 import json
 import logging
@@ -55,6 +56,7 @@ import sys
 from coverage import coverage
 from docopt import docopt
 import pygit2
+import requests
 
 __author__ = '@Robpol86'
 __license__ = 'MIT'
@@ -67,6 +69,7 @@ RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
 
 
 class Local(object):
+    """Base class for all other CI classes. Used as a last resort, mostly just for testing."""
     REPO_TOKEN = os.environ.get('COVERALLS_REPO_TOKEN')
     SERVICE_BRANCH = None
     SERVICE_BUILD_URL = None
@@ -78,6 +81,9 @@ class Local(object):
     @classmethod
     def payload(cls, coverage_result, git_stats_result=None):
         """Puts together environment variable data and coverage/git data into a final dict to be submitted to the API.
+
+        Raises:
+        RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
 
         Positional arguments:
         coverage_result -- return value of coverage_report(), which is a dict with each file's source code (the entire
@@ -116,6 +122,7 @@ class Local(object):
 
 
 class GenericCI(Local):
+    """https://github.com/lemurheavy/coveralls-ruby/blob/master/lib/coveralls/configuration.rb#L63"""
     SERVICE_BRANCH = os.environ.get('CI_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
     SERVICE_NAME = os.environ.get('CI_NAME')
@@ -257,7 +264,9 @@ def coverage_report(coverage_file, source_root):
             logging.error('Source file path {0} not within source root {1}.'.format(file_path, source_root))
             raise RuntimeError('Source file path {0} not within source root {1}.'.format(file_path, source_root))
         with open(file_path, 'rU') as f:
+            logging.debug('Opened {0} for reading.'.format(f.name))
             file_coverage = [None for _ in f]  # List of Nones, same length as the number of lines in the file.
+        logging.debug('Closed {0}.'.format(f.name))
         analysis = cov.analysis(file_path)[1:-1]
         fp_relative = file_path[len(source_root):]
         fp_placeholder = '' if not os.path.getsize(file_path) else 'PLACEHOLDER_{0}_'.format(b64encode(file_path))
@@ -302,7 +311,7 @@ def dump_json_to_disk(payload, target_file):
     encoder = json.JSONEncoder()
     payload_string = json.dumps(payload)
     with open(target_file, 'w') as f_target:
-        logging.debug('Opened {0} for writing.'.format(target_file))
+        logging.debug('Opened {0} for writing.'.format(f_target.name))
         for segment in _RE_SPLIT.split(payload_string):
             if not segment:
                 continue
@@ -311,11 +320,11 @@ def dump_json_to_disk(payload, target_file):
                 continue
             file_path = b64decode(segment[12:-1])
             with open(file_path, 'rU') as f_source:
-                logging.debug('Opened {0} for reading.'.format(file_path))
+                logging.debug('Opened {0} for reading.'.format(f_source.name))
                 for line in f_source:
                     f_target.write(encoder.encode(line)[1:-1])
-            logging.debug('Closed {0}.'.format(file_path))
-    logging.debug('Closed {0}.'.format(target_file))
+            logging.debug('Closed {0}.'.format(f_source.name))
+    logging.debug('Closed {0}.'.format(f_target.name))
 
     byte_size = os.path.getsize(target_file)
     logging.info('Wrote {0} bytes to {1}.'.format(byte_size, target_file))
@@ -349,10 +358,28 @@ def select_ci():
 
 
 def post_to_api(target_file):
+    """POSTs the JSON target_file to the Coveralls API.
+
+    Raises:
+    RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
+
+    Positional arguments:
+    target_file -- JSON string file path to containing dumped payload and source code.
+    """
     logging.info('POSTing to: {0}'.format(API_URL))
+    with open(target_file) as f:
+        logging.debug('Opened {0} for reading.'.format(f.name))
+        response = requests.post(API_URL, files={'json_file': f})
+    logging.debug('Closed {0}.'.format(f.name))
+    for attr in ('text', 'elapsed', 'headers', 'status_code', 'url'):
+        logging.debug('response.{0}: {1}'.format(attr, getattr(response, attr)))
+    if not response.ok:
+        logging.error('Got HTTP {0} while POSTing, not good.'.format(response.status_code))
+        raise RuntimeError('Got HTTP {0} while POSTing, not good.'.format(response.status_code))
 
 
 def main():
+    """Main function called upon script execution."""
     get_dir = lambda d: CWD if d == 'cwd' else os.path.abspath(os.path.expanduser(d))
 
     # First gather data about the git repo and test coverage.
@@ -395,7 +422,7 @@ def main():
     if not OPTIONS.get('--no-delete'):
         logging.info('Deleting {0}.'.format(target_file))
         os.remove(target_file)
-    logging.debug('Done.')
+    logging.info('Done.')
 
 
 def setup_logging():
