@@ -59,7 +59,7 @@ import pygit2
 __author__ = '@Robpol86'
 __license__ = 'MIT'
 __version__ = '1.0.0'
-_RE_SPLIT = re.compile(r'("PLACEHOLDER_(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?_")')
+_RE_SPLIT = re.compile(r'(PLACEHOLDER_(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?_)')
 API_URL = 'https://coveralls.io/api/v1/jobs'
 CWD = os.getcwd()
 OPTIONS = docopt(__doc__) if __name__ == '__main__' else dict()
@@ -299,6 +299,7 @@ def dump_json_to_disk(payload, target_file):
         logging.error("Parent directory doesn't exist: {0}".format(os.path.dirname(target_file)))
         raise RuntimeError("Parent directory doesn't exist: {0}".format(os.path.dirname(target_file)))
 
+    encoder = json.JSONEncoder()
     payload_string = json.dumps(payload)
     with open(target_file, 'w') as f_target:
         logging.debug('Opened {0} for writing.'.format(target_file))
@@ -308,11 +309,11 @@ def dump_json_to_disk(payload, target_file):
             if not _RE_SPLIT.match(segment):
                 f_target.write(segment)
                 continue
-            file_path = b64decode(segment[13:-2])
+            file_path = b64decode(segment[12:-1])
             with open(file_path, 'rU') as f_source:
                 logging.debug('Opened {0} for reading.'.format(file_path))
-                json_handle = json.load(f_source)
-                json.dump(json_handle, f_target)
+                for line in f_source:
+                    f_target.write(encoder.encode(line)[1:-1])
             logging.debug('Closed {0}.'.format(file_path))
     logging.debug('Closed {0}.'.format(target_file))
 
