@@ -59,7 +59,7 @@ import pygit2
 __author__ = '@Robpol86'
 __license__ = 'MIT'
 __version__ = '1.0.0'
-_RE_SPLIT = re.compile(r'"PLACEHOLDER_(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?_"')
+_RE_SPLIT = re.compile(r'("PLACEHOLDER_(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?_")')
 API_URL = 'https://coveralls.io/api/v1/jobs'
 CWD = os.getcwd()
 OPTIONS = docopt(__doc__) if __name__ == '__main__' else dict()
@@ -260,7 +260,7 @@ def coverage_report(coverage_file, source_root):
             file_coverage = [None for _ in f]  # List of Nones, same length as the number of lines in the file.
         analysis = cov.analysis(file_path)[1:-1]
         fp_relative = file_path[len(source_root):]
-        fp_placeholder = 'PLACEHOLDER_{0}_'.format(b64encode(file_path))
+        fp_placeholder = '' if not os.path.getsize(file_path) else 'PLACEHOLDER_{0}_'.format(b64encode(file_path))
 
         for i in analysis[0]:
             file_coverage[i - 1] = 1
@@ -308,8 +308,7 @@ def dump_json_to_disk(payload, target_file):
             if not _RE_SPLIT.match(segment):
                 f_target.write(segment)
                 continue
-            encoded = _RE_SPLIT.findall(segment)[0][0]
-            file_path = b64decode(encoded)
+            file_path = b64decode(segment[13:-2])
             with open(file_path, 'rU') as f_source:
                 logging.debug('Opened {0} for reading.'.format(file_path))
                 json_handle = json.load(f_source)

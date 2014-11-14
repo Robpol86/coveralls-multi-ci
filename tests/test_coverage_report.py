@@ -25,6 +25,7 @@ def test_coverage_script_partial():
     assert 'script.py' == coverage_result[0]['name']
     assert 0 in coverage_result[0]['coverage']
     assert 1 in coverage_result[0]['coverage']
+    assert coverage_result[0]['source'].startswith('PLACEHOLDER_')
 
 
 def test_coverage_script_full():
@@ -36,6 +37,7 @@ def test_coverage_script_full():
     assert 'script.py' == coverage_result[0]['name']
     assert 0 not in coverage_result[0]['coverage']
     assert 1 in coverage_result[0]['coverage']
+    assert coverage_result[0]['source'].startswith('PLACEHOLDER_')
 
 
 def test_coverage_project_partial():
@@ -49,9 +51,11 @@ def test_coverage_project_partial():
     for coverage in coverage_result:
         if coverage['name'].endswith('__init__.py'):
             assert 0 == len(coverage['coverage'])
+            assert '' == coverage['source']
         else:
             assert 0 in coverage['coverage']
             assert 1 in coverage['coverage']
+            assert coverage['source'].startswith('PLACEHOLDER_')
 
 
 def test_coverage_project_full():
@@ -65,6 +69,8 @@ def test_coverage_project_full():
     for coverage in coverage_result:
         if coverage['name'].endswith('__init__.py'):
             assert 0 == len(coverage['coverage'])
+            assert '' == coverage['source']
         else:
             assert 0 not in coverage['coverage']
             assert 1 in coverage['coverage']
+            assert coverage['source'].startswith('PLACEHOLDER_')
