@@ -22,7 +22,7 @@ environment variables:
     CI_PULL_REQUEST -- TODO
 
 Usage:
-    coveralls_multi_ci submit [-c FILE] [-g DIR] [-q | -v]
+    coveralls_multi_ci submit [options]
     coveralls_multi_ci -h | --help
     coveralls_multi_ci -V | --version
 
@@ -317,7 +317,9 @@ def dump_json_to_disk(payload, target_file):
             logging.debug('Closed {0}.'.format(file_path))
     logging.debug('Closed {0}.'.format(target_file))
 
-    return os.path.getsize(target_file)
+    byte_size = os.path.getsize(target_file)
+    logging.info('Wrote {0} bytes to {1}.'.format(byte_size, target_file))
+    return byte_size
 
 
 def select_ci():
@@ -346,8 +348,8 @@ def select_ci():
     return ci_class
 
 
-def post_to_api(payload_json):
-    pass
+def post_to_api(target_file):
+    logging.info('POSTing to: {0}'.format(API_URL))
 
 
 def main():
@@ -366,12 +368,12 @@ def main():
 
     # Select class and get the payload.
     ci_class = select_ci()
-    logging.info('Selected class: {0}'.format(ci_class.__class__.__name__))
+    logging.info('Selected class: {0}'.format(ci_class.__name__))
     try:
         payload = ci_class.payload(coverage_result=coverage_result, git_stats_result=git_stats_result)
     except RuntimeError:
         sys.exit(1)
-    logging.info('Coverage of {0} file(s).'.format(len(payload['source_files'])))
+    logging.info('Coverage of {0} file(s) found.'.format(len(payload['source_files'])))
     if payload.get('git'):
         logging.info('Git branch/tag: {0}'.format(payload['git']['branch']))
     payload_censored = payload.copy()
@@ -382,15 +384,17 @@ def main():
     # Dump payload to file and merge in actual source code.
     target_file = os.path.abspath(os.path.expanduser(OPTIONS.get('--output')))
     try:
-        byte_size = dump_json_to_disk(payload, target_file)
+        dump_json_to_disk(payload, target_file)
     except RuntimeError:
         sys.exit(1)
-    logging.info('Wrote {0} bytes to {1}'.format(byte_size, target_file))
 
-    # Ok now we just submit it to the API. That's it.
-    payload_json = json.dumps(payload)
-    logging.info('POSTing to: {0}'.format(API_URL))
-    post_to_api(payload_json)
+    # Ok now we just submit it to the API.
+    post_to_api(target_file)
+
+    # Cleanup.
+    if not OPTIONS.get('--no-delete'):
+        logging.info('Deleting {0}.'.format(target_file))
+        os.remove(target_file)
     logging.debug('Done.')
 
 
@@ -406,7 +410,7 @@ def setup_logging():
     if OPTIONS.get('--quiet'):
         logging.disable(logging.CRITICAL)
         return
-    fmt = '%(asctime)-15s %(levelname)-8s %(funcName)-13s %(message)s' if OPTIONS.get('--verbose') else '%(message)s'
+    fmt = '%(asctime)-15s %(levelname)-8s %(funcName)-17s %(message)s' if OPTIONS.get('--verbose') else '%(message)s'
 
     class InfoFilter(logging.Filter):
         """From http://stackoverflow.com/questions/16061641/python-logging-split-between-stdout-and-stderr"""
@@ -429,7 +433,7 @@ def setup_logging():
 
     logging.debug('coveralls_multi_ci {0}'.format(__version__))
     logging.debug('CWD: {0}'.format(CWD))
-    logging.debug('OPTIONS values: \n{0}'.format(OPTIONS))
+    logging.debug('OPTIONS dictionary: \n{0}'.format(OPTIONS))
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))  # Properly handle Control+C
@@ -437,4 +441,9 @@ if __name__ == '__main__':
     if OPTIONS.get('--version'):
         logging.info('coveralls_multi_ci {0}'.format(__version__))
         sys.exit(0)
-    main()
+    try:
+        main()
+    except SystemExit as e:
+        if e.message != 0:
+            logging.critical('!! ABORTING, ERROR OCCURRED !!')
+        raise
