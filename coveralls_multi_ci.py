@@ -459,7 +459,10 @@ def main():
         sys.exit(1)
 
     # Ok now we just submit it to the API.
-    post_to_api(target_file)
+    try:
+        post_to_api(target_file)
+    except RuntimeError:
+        sys.exit(1)
 
     # Cleanup.
     if not OPTIONS.get('--no-delete'):
