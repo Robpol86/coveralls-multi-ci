@@ -24,10 +24,14 @@ def execute(environ, options):
         '--source': os.path.join(ROOT, 'sample_project'),
     })
     coveralls_multi_ci.OPTIONS.update(options)
-    coveralls_multi_ci.main()
 
-    os.environ.clear()
-    os.environ.update(original_environ)
+    try:
+        coveralls_multi_ci.main()
+    finally:
+        os.environ.clear()
+        os.environ.update(original_environ)
+        coveralls_multi_ci.OPTIONS.clear()
+        coveralls_multi_ci.OPTIONS.update(original_options)
 
 
 def common_verify(request, json_payload):
@@ -42,11 +46,21 @@ def common_verify(request, json_payload):
 
 
 @pytest.mark.httpretty
-def test_errors():
-    register_uri(POST, coveralls_multi_ci.API_URL)
+def test_errors(tmpdir):
+    output = str(tmpdir.join('coveralls_multi_ci_payload.txt'))
+    register_uri(POST, coveralls_multi_ci.API_URL, status=500)
 
     with pytest.raises(SystemExit):
-        execute(dict(), dict())
+        execute(dict(), {'--coverage': '/tmp/dne'})  # coverage_report() sys.exit(1).
+
+    with pytest.raises(SystemExit):
+        execute(dict(), dict())  # payload() sys.exit(1).
+
+    with pytest.raises(SystemExit):
+        execute(dict(COVERALLS_REPO_TOKEN='abc'), {'--output': '/tmp/dne/coverage'})  # dump_json_to_disk() sys.exit(1).
+
+    with pytest.raises(SystemExit):
+        execute(dict(COVERALLS_REPO_TOKEN='abc'), {'--output': output})  # post_to_api() sys.exit(1).
 
 
 @pytest.mark.httpretty
