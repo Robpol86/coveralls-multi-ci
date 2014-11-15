@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import ast
 import atexit
 from codecs import open
@@ -20,6 +21,8 @@ KEYWORDS = 'Coveralls.io Coveralls CI Travis-CI AppVeyor'
 NAME = 'coveralls-multi-ci'
 NAME_FILE = NAME.replace('-', '_')
 PACKAGE = False
+REQUIRES_INSTALL = ['docopt', 'coverage', 'pygit2', 'requests']
+REQUIRES_TEST = ['pytest', 'pytest-cov', 'pytest-httpretty']
 
 
 def get_metadata(main_file):
@@ -47,6 +50,7 @@ def get_metadata(main_file):
 
 
 class PyTest(test):
+    description = 'Run all tests.'
     TEST_ARGS = ['--cov-report', 'term-missing', '--cov', NAME_FILE, 'tests']
 
     def finalize_options(self):
@@ -62,10 +66,12 @@ class PyTest(test):
 
 
 class PyTestPdb(PyTest):
+    description = 'Run all tests, drops to ipdb upon unhandled exception.'
     TEST_ARGS = ['--ipdb', 'tests']
 
 
 class PyTestCovWeb(PyTest):
+    description = 'Generates HTML report on test coverage.'
     TEST_ARGS = ['--cov-report', 'html', '--cov', NAME_FILE, 'tests']
 
     def run_tests(self):
@@ -89,6 +95,7 @@ class CmdStyle(setuptools.Command):
 
 
 class CmdLint(CmdStyle):
+    description = 'Run pylint on entire project.'
     CMD_ARGS = ['pylint', '--max-line-length', '120', NAME_FILE + ('' if PACKAGE else '.py')]
 
 
@@ -98,7 +105,7 @@ ALL_DATA = dict(
     url='https://github.com/Robpol86/{0}'.format(NAME),
     author_email='robpol86@gmail.com',
 
-    classifiers=[#TODO
+    classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
         'Environment :: MacOS X',
@@ -113,9 +120,8 @@ ALL_DATA = dict(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
-        'Topic :: Software Development :: Libraries',
-        'Topic :: Terminals',
-        'Topic :: Text Processing :: Markup',
+        'Topic :: Software Development :: Testing',
+        'Topic :: Utilities',
     ],
 
     keywords=KEYWORDS,
@@ -123,8 +129,8 @@ ALL_DATA = dict(
     zip_safe=True,
     scripts=[NAME_FILE + '.py'],
 
-    install_requires=['docopt', 'coverage', 'pygit2', 'requests'],
-    tests_require=['pytest', 'pytest-cov', 'pytest-httpretty'],
+    install_requires=REQUIRES_INSTALL,
+    tests_require=REQUIRES_TEST,
     cmdclass=dict(test=PyTest, testpdb=PyTestPdb, testcovweb=PyTestCovWeb, style=CmdStyle, lint=CmdLint),
 
     # Pass the rest from get_metadata().
