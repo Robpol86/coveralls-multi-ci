@@ -5,6 +5,12 @@ import tempfile
 
 import pytest
 
+from coveralls_multi_ci import OPTIONS, setup_logging
+
+
+OPTIONS['--verbose'] = True
+setup_logging()
+
 
 @pytest.fixture(scope='module')
 def repo_dir(request):

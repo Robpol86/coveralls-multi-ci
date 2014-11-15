@@ -6,7 +6,7 @@ import pytest
 from coveralls_multi_ci import dump_json_to_disk
 
 
-def test_errors():
+def test_errors(tmpdir):
     with pytest.raises(ValueError):
         dump_json_to_disk(dict(), '')
 
@@ -15,6 +15,14 @@ def test_errors():
 
     with pytest.raises(ValueError):
         dump_json_to_disk(dict(), '.coverage')
+
+    target_file = tmpdir.join('dir').join('coveralls_multi_ci_payload.txt')
+    with pytest.raises(RuntimeError):
+        dump_json_to_disk(dict(service_name='coveralls_multi_ci'), str(target_file))  # Parent directory doesn't exist.
+
+    target_file.ensure(file=True)
+    with pytest.raises(RuntimeError):
+        dump_json_to_disk(dict(service_name='coveralls_multi_ci'), str(target_file))  # File already exists.
 
 
 def test(tmpdir):
