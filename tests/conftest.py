@@ -8,7 +8,18 @@ import pytest
 from coveralls_multi_ci import OPTIONS, setup_logging
 
 
-OPTIONS['--verbose'] = True
+OPTIONS.update({
+    '--coverage': '.coverage',
+    '--git': 'cwd',
+    '--help': False,
+    '--no-delete': False,
+    '--output': 'coveralls_multi_ci_payload.txt',
+    '--quiet': False,
+    '--source': 'cwd',
+    '--verbose': True,
+    '--version': False,
+    'submit': True
+})
 setup_logging()
 
 

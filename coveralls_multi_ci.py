@@ -6,15 +6,19 @@ Usually you just need to run:
 
 The following are CIs that are natively supported:
     Travis CI (including Pro)
-    AppVeyor
+    AppVeyor (COVERALLS_REPO_TOKEN required)
     CircleCI
     Semaphore
     Jenkins
-    Codeship
-    Atlassian Bamboo
+    Codeship (COVERALLS_REPO_TOKEN required)
+    Atlassian Bamboo (COVERALLS_REPO_TOKEN required)
 
-If you're using a CI not in the list above, you'll need to define these
-environment variables (only CI_NAME is mandatory, others are recommended):
+If you're using one of the CIs listed above, you don't need to define any
+environment variables unless specified, coveralls_multi_ci should work out of
+the box. Otherwise you'll need to define these environment variables.
+COVERALLS_REPO_TOKEN is the only mandatory variable, the others help though.
+    COVERALLS_REPO_TOKEN -- secret repo token displayed on the blue side-bar on
+        your project's Coveralls.io page.
     CI_NAME -- Continuous integration provider's name.
     CI_BUILD_NUMBER -- build number, usually 0 is the first time that CI
         builds/tests your project.
@@ -68,8 +72,8 @@ OPTIONS = docopt(__doc__) if __name__ == '__main__' else dict()
 RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
 
 
-class Local(object):
-    """Base class for all other CI classes. Used as a last resort, mostly just for testing."""
+class Base(object):
+    """Base class for all other CI classes."""
     REPO_TOKEN = os.environ.get('COVERALLS_REPO_TOKEN')
     SERVICE_BRANCH = None
     SERVICE_BUILD_URL = None
@@ -82,9 +86,6 @@ class Local(object):
     def payload(cls, coverage_result, git_stats_result=None):
         """Puts together environment variable data and coverage/git data into a final dict to be submitted to the API.
 
-        Raises:
-        RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
-
         Positional arguments:
         coverage_result -- return value of coverage_report(), which is a dict with each file's source code (the entire
             source code), file name, and coverage information. Will be passed to the API unchanged.
@@ -96,7 +97,7 @@ class Local(object):
         Returns:
         Final dict meant to be sent as a JSON to the API.
         """
-        result = dict(service_name=cls.SERVICE_NAME, source_files=coverage_result, run_at=RUN_AT)
+        result = dict(source_files=coverage_result, run_at=RUN_AT)
 
         # Insert optional values.
         optional = (
@@ -105,66 +106,112 @@ class Local(object):
             ('service_branch', cls.SERVICE_BRANCH),
             ('service_build_url', cls.SERVICE_BUILD_URL),
             ('service_job_id', cls.SERVICE_JOB_ID),
+            ('service_name', cls.SERVICE_NAME),
             ('service_number', cls.SERVICE_NUMBER),
             ('service_pull_request', cls.SERVICE_PULL_REQUEST),
         )
         result.update((k, v) for k, v in optional if v)
 
+        return result
+
+
+class BaseFirstClass(Base):
+    """First class CIs, officially supported by Coveralls.
+
+    First class CIs are those which Coveralls doesn't require the repo token to be specified. Instead Coveralls will
+    use service_name and service_job_id to query the CI for more information about the build.
+    """
+
+    @classmethod
+    def payload(cls, coverage_result, git_stats_result=None):
+        result = super(BaseFirstClass, cls).payload(coverage_result, git_stats_result)
+
         # Validate.
-        if not cls.REPO_TOKEN and not all([cls.SERVICE_JOB_ID, cls.SERVICE_NAME]):
-            logging.error('Must have either repo_token set or both service_job_id and service_name set.')
-            logging.debug('repo_token: {0}'.format(cls.REPO_TOKEN))
-            logging.debug('service_job_id: {0}'.format(cls.SERVICE_JOB_ID))
-            logging.debug('service_name: {0}'.format(cls.SERVICE_NAME))
-            raise RuntimeError('Must have either repo_token set or both service_job_id and service_name set.')
+        if not result.get('service_name') or not result.get('service_job_id'):
+            logging.error('Must have both service_job_id and service_name set.')
+            logging.debug('service_name: {0}'.format(result.get('service_name')))
+            logging.debug('service_job_id: {0}'.format(result.get('service_job_id')))
+            raise RuntimeError('Must have both service_job_id and service_name set.')
 
         return result
 
 
-class GenericCI(Local):
-    """https://github.com/lemurheavy/coveralls-ruby/blob/master/lib/coveralls/configuration.rb#L63"""
+class BaseSecondClass(Base):
+    """Second class CIs, supported by coveralls_multi_ci using Coverall's generic CI support.
+
+    Second class CIs require the repo token to be sent to Coveralls' API. Additional information helps but is not
+    mandatory.
+    """
     SERVICE_BRANCH = os.environ.get('CI_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
-    SERVICE_NAME = os.environ.get('CI_NAME')
+    SERVICE_NAME = os.environ.get('CI_NAME', Base.SERVICE_NAME)
     SERVICE_NUMBER = os.environ.get('CI_BUILD_NUMBER')
     SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
+    @classmethod
+    def payload(cls, coverage_result, git_stats_result=None):
+        result = super(BaseSecondClass, cls).payload(coverage_result, git_stats_result)
 
-class TravisCI(Local):
+        # Validate.
+        if not result.get('repo_token'):
+            logging.error('Must have repo_token set.')
+            logging.debug('repo_token: {0}'.format(result.get('repo_token')))
+            raise RuntimeError('Must have repo_token set.')
+
+        return result
+
+
+class TravisCI(BaseFirstClass):
     """http://docs.travis-ci.com/user/ci-environment/#Environment-variables"""
-    REPO_TOKEN = None
     SERVICE_NAME = 'travis-ci'
     SERVICE_JOB_ID = os.environ.get('TRAVIS_JOB_ID')
 
 
-class AppVeyor(GenericCI):
-    """http://www.appveyor.com/docs/environment-variables"""
-    SERVICE_NAME = 'appveyor'
-
-
-class CircleCI(GenericCI):
+class CircleCI(BaseFirstClass):
     """https://circleci.com/docs/environment-variables"""
-    SERVICE_NAME = 'circle-ci'
+    SERVICE_NAME = 'circleci'
+    SERVICE_NUMBER = os.environ.get('CIRCLE_BUILD_NUM')
 
 
-class Semaphore(GenericCI):
+class Semaphore(BaseFirstClass):
     """https://semaphoreapp.com/docs/available-environment-variables.html"""
     SERVICE_NAME = 'semaphore'
+    SERVICE_NUMBER = os.environ.get('SEMAPHORE_BUILD_NUMBER')
 
 
-class JenkinsCI(GenericCI):
+class JenkinsCI(BaseFirstClass):
     """https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project"""
-    SERVICE_NAME = 'jenkins-ci'
+    SERVICE_NAME = 'jenkins'
+    SERVICE_NUMBER = os.environ.get('BUILD_NUMBER')
 
 
-class Codeship(GenericCI):
+class GenericCI(BaseSecondClass):
+    """https://github.com/lemurheavy/coveralls-ruby/blob/master/lib/coveralls/configuration.rb#L63"""
+    pass
+
+
+class AppVeyor(BaseSecondClass):
+    """http://www.appveyor.com/docs/environment-variables"""
+    SERVICE_NAME = 'appveyor'
+    SERVICE_BRANCH = os.environ.get('APPVEYOR_REPO_BRANCH')
+    SERVICE_BUILD_URL = os.environ.get('APPVEYOR_API_URL')
+    SERVICE_JOB_ID = os.environ.get('APPVEYOR_JOB_ID')
+    SERVICE_NUMBER = os.environ.get('APPVEYOR_BUILD_NUMBER')
+    SERVICE_PULL_REQUEST = os.environ.get('APPVEYOR_PULL_REQUEST_NUMBER')
+
+
+class Codeship(BaseSecondClass):
     """https://codeship.io/documentation/continuous-integration/set-environment-variables/"""
     SERVICE_NAME = 'codeship'
 
 
-class Bamboo(GenericCI):
+class Bamboo(BaseSecondClass):
     """https://confluence.atlassian.com/display/BAMBOO/Bamboo+variables"""
     SERVICE_NAME = 'bamboo'
+    SERVICE_BRANCH = os.environ.get('bamboo.planRepository.branch')
+    SERVICE_BUILD_URL = os.environ.get('bamboo.planRepository.repositoryUrl')
+    SERVICE_JOB_ID = os.environ.get('bamboo.buildKey')
+    SERVICE_NUMBER = os.environ.get('bamboo.buildNumber')
 
 
 def git_stats(repo_dir):
@@ -348,12 +395,8 @@ def select_ci():
     elif 'bamboo.buildNumber' in os.environ:
         ci_class = Bamboo
     else:
-        logging.debug('Did not detect an officially supported CI. Trying the generic class.')
-        if 'CI_NAME' in os.environ:
-            ci_class = GenericCI
-        else:
-            logging.warning('Resorting to Local class. Environment variable "CI_NAME" not defined.')
-            ci_class = Local
+        logging.debug('Did not detect an officially supported CI. Resorting to the generic class.')
+        ci_class = GenericCI
     return ci_class
 
 

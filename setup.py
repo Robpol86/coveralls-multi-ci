@@ -124,7 +124,7 @@ ALL_DATA = dict(
     scripts=[NAME_FILE + '.py'],
 
     install_requires=['docopt', 'coverage', 'pygit2', 'requests'],
-    tests_require=['pytest', 'pytest-cov'],
+    tests_require=['pytest', 'pytest-cov', 'pytest-httpretty'],
     cmdclass=dict(test=PyTest, testpdb=PyTestPdb, testcovweb=PyTestCovWeb, style=CmdStyle, lint=CmdLint),
 
     # Pass the rest from get_metadata().
