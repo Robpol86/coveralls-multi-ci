@@ -71,3 +71,35 @@ def hashes(repo_dir):
     assert all(hashes_.values())
     assert 4 == len(set(hashes_.values()))
     return hashes_
+
+
+@pytest.fixture(autouse=True, scope='session')
+def create_coverage(request):
+    sample_project_root = os.path.join(os.path.abspath(os.path.expanduser(os.path.dirname(__file__))), 'sample_project')
+    environ = os.environ.copy()
+    environ.update(dict(PYTHONPATH='.'))
+    coverage = os.path.join(sample_project_root, '.coverage')
+    pre = ['py.test', '--cov-report', 'term-missing', '--cov']
+
+    def fin():
+        os.remove(os.path.join(sample_project_root, 'coverage_script_partial'))
+        os.remove(os.path.join(sample_project_root, 'coverage_script_full'))
+        os.remove(os.path.join(sample_project_root, 'coverage_project_partial'))
+        os.remove(os.path.join(sample_project_root, 'coverage_project_full'))
+    request.addfinalizer(fin)
+
+    # coverage_script_partial
+    subprocess.check_call(pre + ['script', 'tests/test_script_partial.py'], cwd=sample_project_root, env=environ)
+    os.rename(coverage, os.path.join(sample_project_root, 'coverage_script_partial'))
+
+    # coverage_script_full
+    subprocess.check_call(pre + ['script', 'tests/test_script_full.py'], cwd=sample_project_root, env=environ)
+    os.rename(coverage, os.path.join(sample_project_root, 'coverage_script_full'))
+
+    # coverage_project_partial
+    subprocess.check_call(pre + ['project', 'tests/test_project_partial.py'], cwd=sample_project_root, env=environ)
+    os.rename(coverage, os.path.join(sample_project_root, 'coverage_project_partial'))
+
+    # coverage_project_full
+    subprocess.check_call(pre + ['project', 'tests/test_project_full.py'], cwd=sample_project_root, env=environ)
+    os.rename(coverage, os.path.join(sample_project_root, 'coverage_project_full'))

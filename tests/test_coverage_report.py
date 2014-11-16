@@ -4,7 +4,7 @@ import pytest
 
 from coveralls_multi_ci import coverage_report
 
-CWD = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
+ROOT = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
 
 
 def test_no_file(tmpdir):
@@ -19,8 +19,8 @@ def test_no_file(tmpdir):
 
 
 def test_coverage_script_partial():
-    coverage_file = os.path.join(CWD, 'sample_project', 'coverage_script_partial')
-    source_root = os.path.join(CWD, 'sample_project')
+    coverage_file = os.path.join(ROOT, 'sample_project', 'coverage_script_partial')
+    source_root = os.path.join(ROOT, 'sample_project')
     coverage_result = coverage_report(coverage_file, source_root)
 
     assert 1 == len(coverage_result)
@@ -31,8 +31,8 @@ def test_coverage_script_partial():
 
 
 def test_coverage_script_full():
-    coverage_file = os.path.join(CWD, 'sample_project', 'coverage_script_full')
-    source_root = os.path.join(CWD, 'sample_project')
+    coverage_file = os.path.join(ROOT, 'sample_project', 'coverage_script_full')
+    source_root = os.path.join(ROOT, 'sample_project')
     coverage_result = coverage_report(coverage_file, source_root)
 
     assert 1 == len(coverage_result)
@@ -43,8 +43,8 @@ def test_coverage_script_full():
 
 
 def test_coverage_project_partial():
-    coverage_file = os.path.join(CWD, 'sample_project', 'coverage_project_partial')
-    source_root = os.path.join(CWD, 'sample_project')
+    coverage_file = os.path.join(ROOT, 'sample_project', 'coverage_project_partial')
+    source_root = os.path.join(ROOT, 'sample_project')
     coverage_result = coverage_report(coverage_file, source_root)
 
     assert 4 == len(coverage_result)
@@ -61,8 +61,8 @@ def test_coverage_project_partial():
 
 
 def test_coverage_project_full():
-    coverage_file = os.path.join(CWD, 'sample_project', 'coverage_project_full')
-    source_root = os.path.join(CWD, 'sample_project')
+    coverage_file = os.path.join(ROOT, 'sample_project', 'coverage_project_full')
+    source_root = os.path.join(ROOT, 'sample_project')
     coverage_result = coverage_report(coverage_file, source_root)
 
     assert 4 == len(coverage_result)
