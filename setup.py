@@ -23,6 +23,7 @@ NAME_FILE = NAME.replace('-', '_')
 PACKAGE = False
 REQUIRES_INSTALL = ['docopt', 'coverage', 'gitpython>=0.3.2.RC1', 'requests']
 REQUIRES_TEST = ['pytest', 'pytest-cov', 'pytest-httpretty']
+REQUIRES_PIP = '"' + '" "'.join(set(REQUIRES_INSTALL + REQUIRES_TEST)) + '"'
 
 
 def get_metadata(main_file):
