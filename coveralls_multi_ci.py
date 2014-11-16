@@ -508,8 +508,12 @@ def setup_logging():
     logging.debug('CWD: {0}'.format(CWD))
     logging.debug('OPTIONS dictionary: \n{0}'.format(OPTIONS))
 
-if __name__ == '__main__':
+
+def entry_point():
+    """Entry point for script. Needed for setup.py entry_point definition."""
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))  # Properly handle Control+C
+    if not OPTIONS:
+        OPTIONS.update(docopt(__doc__))  # setup.py entry_point scripts don't set __name__ to __main__.
     setup_logging()
     if OPTIONS.get('--version'):
         logging.info('coveralls_multi_ci {0}'.format(__version__))
@@ -520,3 +524,7 @@ if __name__ == '__main__':
         if e.message != 0:
             logging.critical('!! ABORTING, ERROR OCCURRED !!')
         raise
+
+
+if __name__ == '__main__':
+    entry_point()
