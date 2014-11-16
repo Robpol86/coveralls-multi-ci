@@ -59,7 +59,7 @@ import sys
 
 from coverage import coverage
 from docopt import docopt
-import pygit2
+from git import Repo, InvalidGitRepositoryError
 import requests
 
 __author__ = '@Robpol86'
@@ -228,43 +228,42 @@ def git_stats(repo_dir):
     """
     # Open handle to the repo and get basic data.
     try:
-        repo = pygit2.Repository(repo_dir)
-    except KeyError:
-        logging.error('KeyError raised from pygit2, probably not in a git repo.')
+        repo = Repo(repo_dir)
+    except InvalidGitRepositoryError:
+        logging.error('InvalidGitRepositoryError raised, probably not in a git repo.')
         return dict()
     remotes = [dict(name=r.name.strip(), url=r.url.strip()) for r in repo.remotes]
 
     # Get branches. One commit may be referenced by many branches.
     branches = dict()  # dict(hex=[branch1, branch2, ...])
-    for branch in (repo.lookup_branch(r) for r in repo.listall_branches()):
-        branch_name = branch.branch_name
-        for hex_ in (l.oid_new for l in branch.log() if l.message.startswith('commit')):
+    for branch in repo.branches:
+        branch_name = branch.name
+        for hex_ in (l.newhexsha for l in branch.log() if l.message.startswith('commit')):
             if hex_ not in branches:
                 branches[hex_] = set()
             branches[hex_].add(branch_name)
 
     # Get tags. One commit may be referenced by many tags.
     tags = dict()  # dict(hex=[tag1, tag2, ...])
-    for tag in (repo.lookup_reference(x) for x in repo.listall_references() if x.startswith('refs/tags')):
-        tag_name = tag.shorthand
-        tag_or_commit = repo[tag.target.hex]
-        hex_ = tag_or_commit.hex if tag_or_commit.type == pygit2.GIT_OBJ_COMMIT else repo[tag_or_commit.target].hex
+    for tag in repo.tags:
+        tag_name = tag.name
+        hex_ = tag.commit.hexsha
         if hex_ not in tags:
             tags[hex_] = set()
         tags[hex_].add(tag_name)
 
     # Determine last commit.
-    head_commit = repo.head.peel()
-    if repo.head_is_detached and head_commit.hex in tags and len(tags[head_commit.hex]) == 1:
-        branch = next(iter(tags[head_commit.hex]))
-    elif repo.head_is_detached and head_commit.hex in branches and len(branches[head_commit.hex]) == 1:
-        branch = next(iter(branches[head_commit.hex]))
+    head_commit = repo.rev_parse('HEAD')
+    if repo.head.is_detached and head_commit.hexsha in tags and len(tags[head_commit.hexsha]) == 1:
+        branch = next(iter(tags[head_commit.hexsha]))
+    elif repo.head.is_detached and head_commit.hexsha in branches and len(branches[head_commit.hexsha]) == 1:
+        branch = next(iter(branches[head_commit.hexsha]))
     else:
-        branch = repo.head.shorthand
+        branch = repo.head.ref.name
 
     # Get metadata.
     head = dict(
-        id=head_commit.hex,
+        id=head_commit.hexsha,
         author_name=head_commit.author.name,
         author_email=head_commit.author.email,
         committer_name=head_commit.committer.name,

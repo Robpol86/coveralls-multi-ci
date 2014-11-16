@@ -21,7 +21,7 @@ KEYWORDS = 'Coveralls.io Coveralls CI Travis-CI AppVeyor'
 NAME = 'coveralls-multi-ci'
 NAME_FILE = NAME.replace('-', '_')
 PACKAGE = False
-REQUIRES_INSTALL = ['docopt', 'coverage', 'pygit2', 'requests']
+REQUIRES_INSTALL = ['docopt', 'coverage', 'gitpython>=0.3.2.RC1', 'requests']
 REQUIRES_TEST = ['pytest', 'pytest-cov', 'pytest-httpretty']
 
 
