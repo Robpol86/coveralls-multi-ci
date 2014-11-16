@@ -409,7 +409,7 @@ def post_to_api(target_file):
     Positional arguments:
     target_file -- JSON string file path to containing dumped payload and source code.
     """
-    logging.info('POSTing to: {0}'.format(API_URL))
+    logging.debug('POSTing to: {0}'.format(API_URL))
     with open(target_file) as f:
         logging.debug('Opened {0} for reading.'.format(f.name))
         response = requests.post(API_URL, files={'json_file': f})

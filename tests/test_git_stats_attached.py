@@ -5,7 +5,8 @@ from coveralls_multi_ci import git_stats
 
 
 def test_master(repo_dir):
-    hex_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
+    hex_sha = p.communicate()[0].strip()
 
     actual = git_stats(repo_dir)
     expected = dict(
@@ -29,7 +30,8 @@ def test_feature_branch(repo_dir):
         f.write('test')
     assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
     assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
-    hex_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
+    hex_sha = p.communicate()[0].strip()
 
     actual = git_stats(repo_dir)
     expected = dict(
