@@ -77,6 +77,7 @@ def hashes(repo_dir):
 def create_coverage(request):
     sample_project_root = os.path.join(os.path.abspath(os.path.expanduser(os.path.dirname(__file__))), 'sample_project')
     environ = os.environ.copy()
+    environ.pop('COV_CORE_DATA_FILE', None)
     environ.update(dict(PYTHONPATH='.'))
     coverage = os.path.join(sample_project_root, '.coverage')
     pre = ['py.test', '--cov-report', 'term-missing', '--cov']

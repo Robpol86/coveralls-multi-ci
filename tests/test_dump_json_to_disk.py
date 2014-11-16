@@ -1,9 +1,13 @@
+from base64 import b64encode
 import json
+import os
 from textwrap import dedent
 
 import pytest
 
 from coveralls_multi_ci import dump_json_to_disk
+
+ROOT = os.path.abspath(os.path.expanduser(os.path.dirname(__file__)))
 
 
 def test_errors(tmpdir):
@@ -27,15 +31,14 @@ def test_errors(tmpdir):
 
 def test(tmpdir):
     target_file = tmpdir.join('coveralls_multi_ci_payload.txt')
+    file_path_sub = b64encode(os.path.join(ROOT, 'sample_project', 'project', 'library', 'sub.py'))
+    file_path_main = b64encode(os.path.join(ROOT, 'sample_project', 'project', 'main.py'))
     payload = json.loads(dedent("""\
-        {"service_name": "coveralls_multi_ci", "source_files": [{"source": "PLACEHOLDER_L1VzZXJzL3JvYnBvbDg2L3dvcmtzcG
-        FjZS9jb3ZlcmFsbHMtbXVsdGktY2kvdGVzdHMvc2FtcGxlX3Byb2plY3QvcHJvamVjdC9saWJyYXJ5L3N1Yi5weQ==_", "name": "project/
-        library/sub.py", "coverage": [1, 1, 1, 1, null, 0, 0]}, {"source": "", "name": "proje
-        ct/library/__init__.py", "coverage": []}, {"source": "PLACEHOLDER_L1VzZXJzL3JvYnBvbDg2L3dvcmtzcGFjZS9jb3ZlcmFsb
-        HMtbXVsdGktY2kvdGVzdHMvc2FtcGxlX3Byb2plY3QvcHJvamVjdC9tYWluLnB5_", "name": "project/main.py", "coverage": [1, n
-        ull, null, 1, 1, 1, null, 0, 0]}, {"source": "", "name": "project/__init__.py", "coverage": [
-        ]}]}
-    """).replace('\n', ''))
+        {"service_name": "coveralls_multi_ci", "source_files": [{"source": "PLACEHOLDER_%s_", "name": "project/library/
+        sub.py", "coverage": [1, 1, 1, 1, null, 0, 0]}, {"source": "", "name": "project/library/__init__.py", "coverage
+        ": []}, {"source": "PLACEHOLDER_%s_", "name": "project/main.py", "coverage": [1, null, null, 1, 1, 1, null, 0, 0
+        ]}, {"source": "", "name": "project/__init__.py", "coverage": []}]}
+    """).replace('\n', '') % (file_path_sub, file_path_main))
 
     byte_size = dump_json_to_disk(payload=payload, target_file=str(target_file))
     assert 600 <= byte_size <= 700
