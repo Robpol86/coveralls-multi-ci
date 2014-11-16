@@ -236,9 +236,10 @@ def git_stats(repo_dir):
 
     # Get branches. One commit may be referenced by many branches.
     branches = dict()  # dict(hex=[branch1, branch2, ...])
-    for branch in repo.branches:
+    for branch in iter(repo.branches):
         branch_name = branch.name
-        for hex_ in (l.newhexsha for l in branch.log() if l.message.startswith('commit')):
+        gen = (l.newhexsha for l in branch.log() if l.message.startswith('commit') or l.message.startswith('clone'))
+        for hex_ in gen:
             if hex_ not in branches:
                 branches[hex_] = set()
             branches[hex_].add(branch_name)
@@ -253,7 +254,7 @@ def git_stats(repo_dir):
         tags[hex_].add(tag_name)
 
     # Determine last commit.
-    head_commit = repo.rev_parse('HEAD')
+    head_commit = getattr(repo, 'rev_parse')('HEAD')
     if repo.head.is_detached and head_commit.hexsha in tags and len(tags[head_commit.hexsha]) == 1:
         branch = next(iter(tags[head_commit.hexsha]))
     elif repo.head.is_detached and head_commit.hexsha in branches and len(branches[head_commit.hexsha]) == 1:
