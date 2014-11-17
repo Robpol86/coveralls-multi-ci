@@ -48,14 +48,14 @@ def repo_dir(request):
 @pytest.fixture(scope='module')
 def hashes(repo_dir):
     hashes_ = dict(master='', feature='', tag_annotated='', tag_light='')
-    hashes_['master'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hashes_['master'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip().decode('ascii')
 
     subprocess32.check_call(['git', 'checkout', '-b', 'feature'], cwd=repo_dir)
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test')
     subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
     subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
-    hashes_['feature'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hashes_['feature'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip().decode('ascii')
 
     subprocess32.check_call(['git', 'checkout', 'master'], cwd=repo_dir)
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
@@ -63,14 +63,15 @@ def hashes(repo_dir):
     subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
     subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file2.'], cwd=repo_dir)
     subprocess32.check_call(['git', 'tag', '-a', 'v1.0', '-m', 'First Version'], cwd=repo_dir)
-    hashes_['tag_annotated'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hashes_['tag_annotated'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'],
+                                                         cwd=repo_dir).strip().decode('ascii')
 
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test3')
     subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
     subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file3.'], cwd=repo_dir)
     subprocess32.check_call(['git', 'tag', 'v1.0l'], cwd=repo_dir)
-    hashes_['tag_light'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hashes_['tag_light'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip().decode('ascii')
 
     assert all(hashes_.values())
     assert 4 == len(set(hashes_.values()))

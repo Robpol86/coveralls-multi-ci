@@ -9,7 +9,7 @@ except ImportError:
 
 
 def test_master(repo_dir):
-    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip().decode('ascii')
 
     actual = git_stats(repo_dir)
     expected = dict(
@@ -33,7 +33,7 @@ def test_feature_branch(repo_dir):
         f.write('test')
     subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
     subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
-    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
+    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip().decode('ascii')
 
     actual = git_stats(repo_dir)
     expected = dict(

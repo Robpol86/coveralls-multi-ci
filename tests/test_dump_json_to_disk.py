@@ -31,8 +31,10 @@ def test_errors(tmpdir):
 
 def test(tmpdir):
     target_file = tmpdir.join('coveralls_multi_ci_payload.txt')
-    file_path_sub = b64encode(os.path.join(ROOT, 'sample_project', 'project', 'library', 'sub.py'))
-    file_path_main = b64encode(os.path.join(ROOT, 'sample_project', 'project', 'main.py'))
+    file_path_sub = b64encode(os.path.join(ROOT, 'sample_project', 'project', 'library',
+                                           'sub.py').encode('ascii')).decode('ascii')
+    file_path_main = b64encode(os.path.join(ROOT, 'sample_project', 'project',
+                                            'main.py').encode('ascii')).decode('ascii')
     payload = json.loads(dedent("""\
         {"service_name": "coveralls_multi_ci", "source_files": [{"source": "PLACEHOLDER_%s_", "name": "project/library/
         sub.py", "coverage": [1, 1, 1, 1, null, 0, 0]}, {"source": "", "name": "project/library/__init__.py", "coverage

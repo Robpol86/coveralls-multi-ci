@@ -230,7 +230,7 @@ def git_stats(repo_dir):
     Returns:
     A nested dictionary whose structure matches the JSON data sent to the Coveralls API.
     """
-    call = lambda l: subprocess32.check_output(l, cwd=repo_dir).splitlines()
+    call = lambda l: [x.decode('ascii') for x in subprocess32.check_output(l, cwd=repo_dir).splitlines()]
 
     # Get remotes.
     try:
@@ -325,6 +325,7 @@ def coverage_report(coverage_file, source_root):
         logging.debug('Closed {0}.'.format(f.name))
         analysis = cov.analysis(file_path)[1:-1]
         fp_relative = file_path[len(source_root):]
+        file_path = file_path.encode('ascii')
         fp_placeholder = '' if not os.path.getsize(file_path) else 'PLACEHOLDER_{0}_'.format(b64encode(file_path))
 
         for i in analysis[0]:
