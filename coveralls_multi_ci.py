@@ -531,7 +531,7 @@ def entry_point():
     try:
         main()
     except SystemExit as e:
-        if e.message != 0:
+        if str(e) != '0':
             logging.critical('!! ABORTING, ERROR OCCURRED !!')
         raise
 
