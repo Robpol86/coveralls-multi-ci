@@ -8,7 +8,7 @@ python:
   - 3.4
 
 install:
-  - python2.6 -c 'import setup; print(setup.REQUIRES_PIP)' |xargs pip install
+  - python -c 'import setup; print(setup.REQUIRES_PIP)' |xargs pip install
   - pip install .
 
 script: python setup.py test
