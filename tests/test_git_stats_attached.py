@@ -1,12 +1,11 @@
 import os
-import subprocess
 
 from coveralls_multi_ci import git_stats
+import subprocess32
 
 
 def test_master(repo_dir):
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hex_sha = p.communicate()[0].strip()
+    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
     actual = git_stats(repo_dir)
     expected = dict(
@@ -25,13 +24,12 @@ def test_master(repo_dir):
 
 
 def test_feature_branch(repo_dir):
-    assert 0 == subprocess.check_call(['git', 'checkout', '-b', 'feature'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'checkout', '-b', 'feature'], cwd=repo_dir)
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test')
-    assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hex_sha = p.communicate()[0].strip()
+    subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
+    hex_sha = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
     actual = git_stats(repo_dir)
     expected = dict(

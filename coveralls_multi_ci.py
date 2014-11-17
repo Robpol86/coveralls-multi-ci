@@ -59,8 +59,8 @@ import sys
 
 from coverage import coverage
 from docopt import docopt
-from git import Repo, InvalidGitRepositoryError
 import requests
+import subprocess32
 
 __author__ = '@Robpol86'
 __license__ = 'MIT'
@@ -226,50 +226,55 @@ def git_stats(repo_dir):
     Returns:
     A nested dictionary whose structure matches the JSON data sent to the Coveralls API.
     """
-    # Open handle to the repo and get basic data.
+    call = lambda l: subprocess32.check_output(l, cwd=repo_dir).splitlines()
+
+    # Get remotes.
     try:
-        repo = Repo(repo_dir)
-    except InvalidGitRepositoryError:
-        logging.error('InvalidGitRepositoryError raised, probably not in a git repo.')
+        gen = (l.split() for l in call(['git', 'remote', '-v']))
+        remotes = [dict(name=r[0], url=r[1]) for r in gen if r[2] == '(fetch)']
+    except subprocess32.CalledProcessError:
+        logging.error('CalledProcessError raised, probably not in a git repo.')
         return dict()
-    remotes = [dict(name=r.name.strip(), url=r.url.strip()) for r in repo.remotes]
 
     # Get branches. One commit may be referenced by many branches.
     branches = dict()  # dict(hex=[branch1, branch2, ...])
-    for branch in iter(repo.branches):
-        branch_name = branch.name
-        gen = (l.newhexsha for l in branch.log() if l.message.startswith('commit') or l.message.startswith('clone'))
-        for hex_ in gen:
+    for branch in call(['git', 'show-ref', '--heads']):
+        branch_name = branch.split(' ', 1)[1][11:]
+        gen = (l.split() for l in call(['git', 'reflog', 'show', branch_name, '--pretty=%H %gs']))
+        for hex_ in (l[0] for l in gen if 'commit' in l[1]):
             if hex_ not in branches:
                 branches[hex_] = set()
             branches[hex_].add(branch_name)
 
     # Get tags. One commit may be referenced by many tags.
     tags = dict()  # dict(hex=[tag1, tag2, ...])
-    for tag in repo.tags:
-        tag_name = tag.name
-        hex_ = tag.commit.hexsha
+    for tag in (l.split() for l in call(['git', 'show-ref', '-d']) if 'refs/tags/' in l):
+        tag_name = tag[1][10:]
+        if tag_name.endswith('^{}'):
+            tag_name = tag[1][10:][:-3]
+        hex_ = tag[0]
         if hex_ not in tags:
             tags[hex_] = set()
         tags[hex_].add(tag_name)
 
     # Determine last commit.
-    head_commit = getattr(repo, 'rev_parse')('HEAD')
-    if repo.head.is_detached and head_commit.hexsha in tags and len(tags[head_commit.hexsha]) == 1:
-        branch = next(iter(tags[head_commit.hexsha]))
-    elif repo.head.is_detached and head_commit.hexsha in branches and len(branches[head_commit.hexsha]) == 1:
-        branch = next(iter(branches[head_commit.hexsha]))
+    git_log = call(['git', '--no-pager', 'log', '-1', '--pretty=%H%n%aN%n%ae%n%cN%n%ce%n%s'])
+    is_detached = call(['git', 'rev-parse', '--symbolic-full-name', '--abbrev-ref', 'HEAD'])[0] == 'HEAD'
+    if is_detached and git_log[0] in tags and len(tags[git_log[0]]) == 1:
+        branch = next(iter(tags[git_log[0]]))
+    elif is_detached and git_log[0] in branches and len(branches[git_log[0]]) == 1:
+        branch = next(iter(branches[git_log[0]]))
     else:
-        branch = repo.head.ref.name
+        branch = call(['git', 'rev-parse', '--symbolic-full-name', '--abbrev-ref', 'HEAD'])[0]
 
     # Get metadata.
     head = dict(
-        id=head_commit.hexsha,
-        author_name=head_commit.author.name,
-        author_email=head_commit.author.email,
-        committer_name=head_commit.committer.name,
-        committer_email=head_commit.committer.email,
-        message=head_commit.message.strip(),
+        id=git_log[0],
+        author_name=git_log[1],
+        author_email=git_log[2],
+        committer_name=git_log[3],
+        committer_email=git_log[4],
+        message=git_log[5],
     )
 
     return dict(head=head, branch=branch, remotes=remotes)

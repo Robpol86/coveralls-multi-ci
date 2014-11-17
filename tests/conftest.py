@@ -1,9 +1,9 @@
 import os
 import shutil
-import subprocess
 import tempfile
 
 import pytest
+import subprocess32
 
 from coveralls_multi_ci import OPTIONS, setup_logging
 
@@ -28,15 +28,15 @@ def repo_dir(request):
     rd = tempfile.mkdtemp()
     request.addfinalizer(lambda: shutil.rmtree(rd))
 
-    assert 0 == subprocess.check_call(['git', 'init'], cwd=rd)
-    assert 0 == subprocess.check_call(['git', 'remote', 'add', 'origin', 'http://localhost/git.git'], cwd=rd)
-    assert 0 == subprocess.check_call(['git', 'config', '--local', 'user.name', 'MrCommit'], cwd=rd)
-    assert 0 == subprocess.check_call(['git', 'config', '--local', 'user.email', 'mc@aol.com'], cwd=rd)
+    subprocess32.check_call(['git', 'init'], cwd=rd)
+    subprocess32.check_call(['git', 'remote', 'add', 'origin', 'http://localhost/git.git'], cwd=rd)
+    subprocess32.check_call(['git', 'config', '--local', 'user.name', 'MrCommit'], cwd=rd)
+    subprocess32.check_call(['git', 'config', '--local', 'user.email', 'mc@aol.com'], cwd=rd)
     with open(os.path.join(rd, 'test.txt'), 'a'):
-        pass
-    assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=rd)
-    assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Committing empty file.', '--author',
-                                       'MrsAuthor <ma@aol.com>'], cwd=rd)
+        pass  # touch test.txt
+    subprocess32.check_call(['git', 'add', 'test.txt'], cwd=rd)
+    subprocess32.check_call(['git', 'commit', '-m', 'Committing empty file.', '--author', 'MrsAuthor <ma@aol.com>'],
+                            cwd=rd)
 
     return rd
 
@@ -44,33 +44,29 @@ def repo_dir(request):
 @pytest.fixture(scope='module')
 def hashes(repo_dir):
     hashes_ = dict(master='', feature='', tag_annotated='', tag_light='')
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hashes_['master'] = p.communicate()[0].strip()
+    hashes_['master'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
-    assert 0 == subprocess.check_call(['git', 'checkout', '-b', 'feature'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'checkout', '-b', 'feature'], cwd=repo_dir)
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test')
-    assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hashes_['feature'] = p.communicate()[0].strip()
+    subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file.'], cwd=repo_dir)
+    hashes_['feature'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
-    assert 0 == subprocess.check_call(['git', 'checkout', 'master'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'checkout', 'master'], cwd=repo_dir)
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test2')
-    assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Wrote to file2.'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'tag', '-a', 'v1.0', '-m', 'First Version'], cwd=repo_dir)
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hashes_['tag_annotated'] = p.communicate()[0].strip()
+    subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file2.'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'tag', '-a', 'v1.0', '-m', 'First Version'], cwd=repo_dir)
+    hashes_['tag_annotated'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
     with open(os.path.join(repo_dir, 'test.txt'), 'a') as f:
         f.write('test3')
-    assert 0 == subprocess.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'commit', '-m', 'Wrote to file3.'], cwd=repo_dir)
-    assert 0 == subprocess.check_call(['git', 'tag', 'v1.0l'], cwd=repo_dir)
-    p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, cwd=repo_dir)
-    hashes_['tag_light'] = p.communicate()[0].strip()
+    subprocess32.check_call(['git', 'add', 'test.txt'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'commit', '-m', 'Wrote to file3.'], cwd=repo_dir)
+    subprocess32.check_call(['git', 'tag', 'v1.0l'], cwd=repo_dir)
+    hashes_['tag_light'] = subprocess32.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo_dir).strip()
 
     assert all(hashes_.values())
     assert 4 == len(set(hashes_.values()))
@@ -94,17 +90,17 @@ def create_coverage(request):
     request.addfinalizer(fin)
 
     # coverage_script_partial
-    subprocess.check_call(pre + ['script', 'tests/test_script_partial.py'], cwd=sample_project_root, env=environ)
+    subprocess32.check_call(pre + ['script', 'tests/test_script_partial.py'], cwd=sample_project_root, env=environ)
     os.rename(coverage, os.path.join(sample_project_root, 'coverage_script_partial'))
 
     # coverage_script_full
-    subprocess.check_call(pre + ['script', 'tests/test_script_full.py'], cwd=sample_project_root, env=environ)
+    subprocess32.check_call(pre + ['script', 'tests/test_script_full.py'], cwd=sample_project_root, env=environ)
     os.rename(coverage, os.path.join(sample_project_root, 'coverage_script_full'))
 
     # coverage_project_partial
-    subprocess.check_call(pre + ['project', 'tests/test_project_partial.py'], cwd=sample_project_root, env=environ)
+    subprocess32.check_call(pre + ['project', 'tests/test_project_partial.py'], cwd=sample_project_root, env=environ)
     os.rename(coverage, os.path.join(sample_project_root, 'coverage_project_partial'))
 
     # coverage_project_full
-    subprocess.check_call(pre + ['project', 'tests/test_project_full.py'], cwd=sample_project_root, env=environ)
+    subprocess32.check_call(pre + ['project', 'tests/test_project_full.py'], cwd=sample_project_root, env=environ)
     os.rename(coverage, os.path.join(sample_project_root, 'coverage_project_full'))
