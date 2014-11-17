@@ -179,7 +179,7 @@ class TravisCI(BaseFirstClass):
 class CircleCI(BaseFirstClass):
     """https://circleci.com/docs/environment-variables"""
     SERVICE_NAME = 'circleci'
-    SERVICE_JOB_ID = os.environ.get('CIRCLE_BUILD_NUM')
+    SERVICE_JOB_ID = os.environ.get('CIRCLE_SHA1')
 
 
 class Semaphore(BaseFirstClass):
