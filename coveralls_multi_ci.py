@@ -116,6 +116,11 @@ class Base(object):
         )
         result.update((k, v) for k, v in optional if v)
 
+        result_censored = result.copy()
+        if result.get('repo_token'):
+            result_censored['repo_token'] = '*' * len(result['repo_token'])
+        logging.debug('Placeholdered payload excluding repo token:\n{0}'.format(result_censored))
+
         return result
 
 
@@ -174,19 +179,19 @@ class TravisCI(BaseFirstClass):
 class CircleCI(BaseFirstClass):
     """https://circleci.com/docs/environment-variables"""
     SERVICE_NAME = 'circleci'
-    SERVICE_NUMBER = os.environ.get('CIRCLE_BUILD_NUM')
+    SERVICE_JOB_ID = os.environ.get('CIRCLE_BUILD_NUM')
 
 
 class Semaphore(BaseFirstClass):
     """https://semaphoreapp.com/docs/available-environment-variables.html"""
     SERVICE_NAME = 'semaphore'
-    SERVICE_NUMBER = os.environ.get('SEMAPHORE_BUILD_NUMBER')
+    SERVICE_JOB_ID = os.environ.get('SEMAPHORE_BUILD_NUMBER')
 
 
 class JenkinsCI(BaseFirstClass):
     """https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project"""
     SERVICE_NAME = 'jenkins'
-    SERVICE_NUMBER = os.environ.get('BUILD_NUMBER')
+    SERVICE_JOB_ID = os.environ.get('BUILD_NUMBER')
 
 
 class GenericCI(BaseSecondClass):
@@ -456,10 +461,6 @@ def main():
     logging.info('Coverage of {0} file(s) found.'.format(len(payload['source_files'])))
     if payload.get('git'):
         logging.info('Git branch/tag: {0}'.format(payload['git']['branch']))
-    payload_censored = payload.copy()
-    if payload.get('repo_token'):
-        payload_censored['repo_token'] = '*' * len(payload['repo_token'])
-    logging.debug('Placeholdered payload excluding repo token:\n{0}'.format(payload_censored))
 
     # Dump payload to file and merge in actual source code.
     target_file = os.path.abspath(os.path.expanduser(OPTIONS.get('--output')))
