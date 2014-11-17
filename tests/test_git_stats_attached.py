@@ -1,7 +1,11 @@
 import os
 
 from coveralls_multi_ci import git_stats
-import subprocess32
+
+try:
+    import subprocess32
+except ImportError:
+    import subprocess as subprocess32
 
 
 def test_master(repo_dir):

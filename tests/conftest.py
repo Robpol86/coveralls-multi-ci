@@ -3,7 +3,11 @@ import shutil
 import tempfile
 
 import pytest
-import subprocess32
+
+try:
+    import subprocess32
+except ImportError:
+    import subprocess as subprocess32
 
 from coveralls_multi_ci import OPTIONS, setup_logging
 

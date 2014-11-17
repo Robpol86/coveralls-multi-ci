@@ -60,7 +60,11 @@ import sys
 from coverage import coverage
 from docopt import docopt
 import requests
-import subprocess32
+
+try:
+    import subprocess32
+except ImportError:
+    import subprocess as subprocess32
 
 __author__ = '@Robpol86'
 __license__ = 'MIT'
