@@ -95,3 +95,16 @@ def test_generic_maximum():
     assert 'test_run' == json_payload['service_name']
     assert '9' == json_payload['service_number']
     assert '1' == json_payload['service_pull_request']
+
+
+@pytest.mark.httpretty
+def test_ci():
+    register_uri(POST, coveralls_multi_ci.API_URL)
+    environ = os.environ.copy()
+    environ.update(COVERALLS_REPO_TOKEN='abc')
+    execute(environ, dict())
+    request = last_request()
+    json_payload = json.loads(request.body.splitlines()[3].decode('ascii'))
+    common_verify(request, json_payload)
+    if 'CI' in os.environ:
+        assert 'coveralls_multi_ci' != json_payload['service_name']
