@@ -3,7 +3,7 @@ machine:
     version: 3.4.1
 
 dependencies:
-  pre:
+  override:
     - python -c 'import setup; print(setup.REQUIRES_PIP)' |xargs pip install
     - pip install .
 
