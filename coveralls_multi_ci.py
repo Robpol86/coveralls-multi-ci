@@ -118,6 +118,7 @@ class Base(object):
             ('service_pull_request', cls.SERVICE_PULL_REQUEST),
         )
         result.update((k, v) for k, v in optional if v)
+        cls.validate(result, cls.SERVICE_NAME in ('travis-ci', ), OPTIONS.get('--multi'))
 
         result_censored = result.copy()
         if result.get('repo_token'):
@@ -126,49 +127,36 @@ class Base(object):
 
         return result
 
+    @staticmethod
+    def validate(result, service_job_id, multi):
+        """Raises RuntimeError if any required values are missing from the result.
 
-class BaseFirstClass(Base):
-    """First class CIs, officially supported by Coveralls.
+        Raises:
+        RuntimeError -- raised after logging to stderr. Caller should just call sys.exit(1).
 
-    First class CIs are those which Coveralls doesn't require the repo token to be specified. Instead Coveralls will
-    use service_name and service_job_id to query the CI for more information about the build.
-    """
-
-    @classmethod
-    def payload(cls, coverage_result, git_stats_result=None):
-        result = super(BaseFirstClass, cls).payload(coverage_result, git_stats_result)
-
-        # Validate.
-        if not result.get('service_name') or not result.get('service_job_id'):
-            logging.error('Must have both service_job_id and service_name set.')
+        Positional arguments:
+        result -- result dict generated in payload().
+        service_job_id -- check for service_name and service_job_id if True, otherwise check for just repo_token.
+        multi -- check for repo_token and service_name if True.
+        """
+        # service_name
+        if (multi or service_job_id) and not result.get('service_name'):
+            logging.error('Must have service_name set.')
             logging.debug('service_name: {0}'.format(result.get('service_name')))
-            logging.debug('service_job_id: {0}'.format(result.get('service_job_id')))
-            raise RuntimeError('Must have both service_job_id and service_name set.')
-
-        return result
-
-
-class BaseSecondClass(Base):
-    """Second class CIs, supported by coveralls_multi_ci using Coverall's generic CI support.
-
-    Second class CIs require the repo token to be sent to Coveralls' API. Additional information helps but is not
-    mandatory.
-    """
-
-    @classmethod
-    def payload(cls, coverage_result, git_stats_result=None):
-        result = super(BaseSecondClass, cls).payload(coverage_result, git_stats_result)
-
-        # Validate.
-        if not result.get('repo_token'):
+            raise RuntimeError('Must have service_name set.')
+        # repo_token
+        if (multi or not service_job_id) and not result.get('repo_token'):
             logging.error('Must have repo_token set.')
             logging.debug('repo_token: {0}'.format(result.get('repo_token')))
             raise RuntimeError('Must have repo_token set.')
+        # service_job_id
+        if service_job_id and not result.get('service_job_id'):
+            logging.error('Must have service_job_id set.')
+            logging.debug('service_job_id: {0}'.format(result.get('service_job_id')))
+            raise RuntimeError('Must have service_job_id set.')
 
-        return result
 
-
-class TravisCI(BaseFirstClass if not OPTIONS.get('--multi') else BaseSecondClass):
+class TravisCI(Base):
     """http://docs.travis-ci.com/user/ci-environment/#Environment-variables"""
     SERVICE_BRANCH = os.environ.get('TRAVIS_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('TRAVIS_BUILD_DIR')
@@ -178,7 +166,7 @@ class TravisCI(BaseFirstClass if not OPTIONS.get('--multi') else BaseSecondClass
     SERVICE_PULL_REQUEST = os.environ.get('TRAVIS_PULL_REQUEST')
 
 
-class CircleCI(BaseSecondClass):
+class CircleCI(Base):
     """https://circleci.com/docs/environment-variables"""
     SERVICE_BRANCH = os.environ.get('CIRCLE_BRANCH')
     SERVICE_JOB_ID = os.environ.get('CIRCLE_SHA1')
@@ -187,7 +175,7 @@ class CircleCI(BaseSecondClass):
     SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
 
-class Semaphore(BaseSecondClass):
+class Semaphore(Base):
     """https://semaphoreapp.com/docs/available-environment-variables.html"""
     SERVICE_BRANCH = os.environ.get('BRANCH_NAME')
     SERVICE_JOB_ID = os.environ.get('SEMAPHORE_PROJECT_HASH_ID')
@@ -195,7 +183,7 @@ class Semaphore(BaseSecondClass):
     SERVICE_NUMBER = os.environ.get('SEMAPHORE_BUILD_NUMBER')
 
 
-class JenkinsCI(BaseSecondClass):
+class JenkinsCI(Base):
     """https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project"""
     SERVICE_BRANCH = os.environ.get('GIT_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('BUILD_URL')
@@ -204,12 +192,12 @@ class JenkinsCI(BaseSecondClass):
     SERVICE_NUMBER = os.environ.get('BUILD_NUMBER')
 
 
-class GenericCI(BaseSecondClass):
+class GenericCI(Base):
     """https://github.com/lemurheavy/coveralls-ruby/blob/master/lib/coveralls/configuration.rb#L63"""
     SERVICE_NAME = Base.SERVICE_NAME or 'generic'
 
 
-class AppVeyor(BaseSecondClass):
+class AppVeyor(Base):
     """http://www.appveyor.com/docs/environment-variables"""
     SERVICE_BRANCH = os.environ.get('APPVEYOR_REPO_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('APPVEYOR_API_URL')
@@ -219,12 +207,12 @@ class AppVeyor(BaseSecondClass):
     SERVICE_PULL_REQUEST = os.environ.get('APPVEYOR_PULL_REQUEST_NUMBER')
 
 
-class Codeship(BaseSecondClass):
+class Codeship(Base):
     """https://codeship.io/documentation/continuous-integration/set-environment-variables/"""
     SERVICE_NAME = 'codeship'
 
 
-class Bamboo(BaseSecondClass):
+class Bamboo(Base):
     """https://confluence.atlassian.com/display/BAMBOO/Bamboo+variables"""
     SERVICE_BRANCH = os.environ.get('bamboo.planRepository.branch')
     SERVICE_BUILD_URL = os.environ.get('bamboo.planRepository.repositoryUrl')

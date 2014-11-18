@@ -11,8 +11,7 @@ install:
   - python -c 'import setup; print(setup.REQUIRES_PIP)' |xargs pip install
   - pip install .
 
-script: python setup.py test
-
-after_success:
+script:
+  - python setup.py test
   - coveralls_multi_ci submit -v
   - coveralls_multi_ci submit -v --multi
