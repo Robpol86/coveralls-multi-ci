@@ -9,5 +9,4 @@ dependencies:
 
 test:
   post:
-    - coveralls_multi_ci submit -v
     - coveralls_multi_ci submit -v --multi
