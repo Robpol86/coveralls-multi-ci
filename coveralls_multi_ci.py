@@ -176,22 +176,22 @@ class TravisCI(BaseFirstClass):
     SERVICE_JOB_ID = os.environ.get('TRAVIS_JOB_ID')
 
 
-class CircleCI(BaseFirstClass):
+class CircleCI(BaseSecondClass):
     """https://circleci.com/docs/environment-variables"""
     SERVICE_NAME = 'circleci'
-    SERVICE_JOB_ID = os.environ.get('CIRCLE_SHA1')
+    SERVICE_NUMBER = os.environ.get('CIRCLE_BUILD_NUM')
 
 
-class Semaphore(BaseFirstClass):
+class Semaphore(BaseSecondClass):
     """https://semaphoreapp.com/docs/available-environment-variables.html"""
     SERVICE_NAME = 'semaphore'
-    SERVICE_JOB_ID = os.environ.get('SEMAPHORE_BUILD_NUMBER')
+    SERVICE_NUMBER = os.environ.get('SEMAPHORE_BUILD_NUMBER')
 
 
-class JenkinsCI(BaseFirstClass):
+class JenkinsCI(BaseSecondClass):
     """https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project"""
     SERVICE_NAME = 'jenkins'
-    SERVICE_JOB_ID = os.environ.get('BUILD_NUMBER')
+    SERVICE_NUMBER = os.environ.get('BUILD_NUMBER')
 
 
 class GenericCI(BaseSecondClass):
