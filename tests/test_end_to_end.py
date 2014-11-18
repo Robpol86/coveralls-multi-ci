@@ -74,7 +74,7 @@ def test_generic_minimum():
     assert ['git', 'repo_token', 'run_at', 'service_name', 'source_files'] == sorted(json_payload.keys())
 
     assert 'abc' == json_payload['repo_token']
-    assert 'coveralls_multi_ci' == json_payload['service_name']
+    assert 'generic' == json_payload['service_name']
 
 
 @pytest.mark.httpretty

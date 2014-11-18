@@ -37,6 +37,9 @@ Options:
     -g --git=DIR        Path to the root git repo directory.
                         [default: cwd]
     -h --help           Show this screen.
+    -m --multi          Enable support for simultaneously more than one CI.
+                        Requires COVERALLS_REPO_TOKEN to be defined, even for
+                        Travis CI.
     --no-delete         Don't delete the temporary payload file after POSTing.
     -o --output=FILE    Temporary payload file to write/read. Dumps all source
                         code into this file and reads it during POST to API.
@@ -79,12 +82,12 @@ RUN_AT = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S +0000')
 class Base(object):
     """Base class for all other CI classes."""
     REPO_TOKEN = os.environ.get('COVERALLS_REPO_TOKEN')
-    SERVICE_BRANCH = None
-    SERVICE_BUILD_URL = None
+    SERVICE_BRANCH = os.environ.get('CI_BRANCH')
+    SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
     SERVICE_JOB_ID = None
-    SERVICE_NAME = 'coveralls_multi_ci'
-    SERVICE_NUMBER = None
-    SERVICE_PULL_REQUEST = None
+    SERVICE_NAME = os.environ.get('CI_NAME')
+    SERVICE_NUMBER = os.environ.get('CI_BUILD_NUMBER')
+    SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
     @classmethod
     def payload(cls, coverage_result, git_stats_result=None):
@@ -110,7 +113,7 @@ class Base(object):
             ('service_branch', cls.SERVICE_BRANCH),
             ('service_build_url', cls.SERVICE_BUILD_URL),
             ('service_job_id', cls.SERVICE_JOB_ID),
-            ('service_name', cls.SERVICE_NAME),
+            ('service_name', 'coveralls_multi_ci' if OPTIONS.get('--multi') else cls.SERVICE_NAME),
             ('service_number', cls.SERVICE_NUMBER),
             ('service_pull_request', cls.SERVICE_PULL_REQUEST),
         )
@@ -151,11 +154,6 @@ class BaseSecondClass(Base):
     Second class CIs require the repo token to be sent to Coveralls' API. Additional information helps but is not
     mandatory.
     """
-    SERVICE_BRANCH = os.environ.get('CI_BRANCH')
-    SERVICE_BUILD_URL = os.environ.get('CI_BUILD_URL')
-    SERVICE_NAME = os.environ.get('CI_NAME', Base.SERVICE_NAME)
-    SERVICE_NUMBER = os.environ.get('CI_BUILD_NUMBER')
-    SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
     @classmethod
     def payload(cls, coverage_result, git_stats_result=None):
@@ -170,41 +168,53 @@ class BaseSecondClass(Base):
         return result
 
 
-class TravisCI(BaseFirstClass):
+class TravisCI(BaseFirstClass if not OPTIONS.get('--multi') else BaseSecondClass):
     """http://docs.travis-ci.com/user/ci-environment/#Environment-variables"""
-    SERVICE_NAME = 'travis-ci'
+    SERVICE_BRANCH = os.environ.get('TRAVIS_BRANCH')
+    SERVICE_BUILD_URL = os.environ.get('TRAVIS_BUILD_DIR')
     SERVICE_JOB_ID = os.environ.get('TRAVIS_JOB_ID')
+    SERVICE_NAME = 'travis-ci'
+    SERVICE_NUMBER = os.environ.get('TRAVIS_BUILD_NUMBER')
+    SERVICE_PULL_REQUEST = os.environ.get('TRAVIS_PULL_REQUEST')
 
 
 class CircleCI(BaseSecondClass):
     """https://circleci.com/docs/environment-variables"""
+    SERVICE_BRANCH = os.environ.get('CIRCLE_BRANCH')
+    SERVICE_JOB_ID = os.environ.get('CIRCLE_SHA1')
     SERVICE_NAME = 'circleci'
     SERVICE_NUMBER = os.environ.get('CIRCLE_BUILD_NUM')
+    SERVICE_PULL_REQUEST = os.environ.get('CI_PULL_REQUEST')
 
 
 class Semaphore(BaseSecondClass):
     """https://semaphoreapp.com/docs/available-environment-variables.html"""
+    SERVICE_BRANCH = os.environ.get('BRANCH_NAME')
+    SERVICE_JOB_ID = os.environ.get('SEMAPHORE_PROJECT_HASH_ID')
     SERVICE_NAME = 'semaphore'
     SERVICE_NUMBER = os.environ.get('SEMAPHORE_BUILD_NUMBER')
 
 
 class JenkinsCI(BaseSecondClass):
     """https://wiki.jenkins-ci.org/display/JENKINS/Building+a+software+project"""
+    SERVICE_BRANCH = os.environ.get('GIT_BRANCH')
+    SERVICE_BUILD_URL = os.environ.get('BUILD_URL')
+    SERVICE_JOB_ID = os.environ.get('BUILD_ID')
     SERVICE_NAME = 'jenkins'
     SERVICE_NUMBER = os.environ.get('BUILD_NUMBER')
 
 
 class GenericCI(BaseSecondClass):
     """https://github.com/lemurheavy/coveralls-ruby/blob/master/lib/coveralls/configuration.rb#L63"""
-    pass
+    SERVICE_NAME = Base.SERVICE_NAME or 'generic'
 
 
 class AppVeyor(BaseSecondClass):
     """http://www.appveyor.com/docs/environment-variables"""
-    SERVICE_NAME = 'appveyor'
     SERVICE_BRANCH = os.environ.get('APPVEYOR_REPO_BRANCH')
     SERVICE_BUILD_URL = os.environ.get('APPVEYOR_API_URL')
     SERVICE_JOB_ID = os.environ.get('APPVEYOR_JOB_ID')
+    SERVICE_NAME = 'appveyor'
     SERVICE_NUMBER = os.environ.get('APPVEYOR_BUILD_NUMBER')
     SERVICE_PULL_REQUEST = os.environ.get('APPVEYOR_PULL_REQUEST_NUMBER')
 
@@ -216,10 +226,10 @@ class Codeship(BaseSecondClass):
 
 class Bamboo(BaseSecondClass):
     """https://confluence.atlassian.com/display/BAMBOO/Bamboo+variables"""
-    SERVICE_NAME = 'bamboo'
     SERVICE_BRANCH = os.environ.get('bamboo.planRepository.branch')
     SERVICE_BUILD_URL = os.environ.get('bamboo.planRepository.repositoryUrl')
     SERVICE_JOB_ID = os.environ.get('bamboo.buildKey')
+    SERVICE_NAME = 'bamboo'
     SERVICE_NUMBER = os.environ.get('bamboo.buildNumber')
 
 
