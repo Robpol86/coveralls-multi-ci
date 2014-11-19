@@ -136,11 +136,11 @@ class Base(object):
 
         Positional arguments:
         result -- result dict generated in payload().
-        service_job_id -- check for service_name and service_job_id if True, otherwise check for just repo_token.
+        service_job_id -- check for service_job_id if True, otherwise check for just repo_token.
         multi -- check for repo_token and service_name if True.
         """
         # service_name
-        if (multi or service_job_id) and not result.get('service_name'):
+        if not result.get('service_name'):
             logging.error('Must have service_name set.')
             logging.debug('service_name: {0}'.format(result.get('service_name')))
             raise RuntimeError('Must have service_name set.')
