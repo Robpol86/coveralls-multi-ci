@@ -112,7 +112,7 @@ class Base(object):
             ('repo_token', cls.REPO_TOKEN),
             ('service_branch', cls.SERVICE_BRANCH),
             ('service_build_url', cls.SERVICE_BUILD_URL),
-            ('service_job_id', cls.SERVICE_JOB_ID),
+            ('service_job_id', None if OPTIONS.get('--multi') else cls.SERVICE_JOB_ID),
             ('service_name', 'coveralls_multi_ci' if OPTIONS.get('--multi') else cls.SERVICE_NAME),
             ('service_number', cls.SERVICE_NUMBER),
             ('service_pull_request', cls.SERVICE_PULL_REQUEST),
