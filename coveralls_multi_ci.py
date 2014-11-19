@@ -150,7 +150,7 @@ class Base(object):
             logging.debug('repo_token: {0}'.format(result.get('repo_token')))
             raise RuntimeError('Must have repo_token set.')
         # service_job_id
-        if service_job_id and not result.get('service_job_id'):
+        if (not multi and service_job_id) and not result.get('service_job_id'):
             logging.error('Must have service_job_id set.')
             logging.debug('service_job_id: {0}'.format(result.get('service_job_id')))
             raise RuntimeError('Must have service_job_id set.')
