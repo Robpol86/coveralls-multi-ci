@@ -13,4 +13,4 @@ install:
 
 script: python setup.py test
 
-after_success: ./codecov.py
+after_success: python codecov.py
