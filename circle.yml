@@ -5,8 +5,9 @@ machine:
 dependencies:
   override:
     - python -c 'import setup; print(setup.REQUIRES_PIP)' |xargs pip install
+    - pip install robpol86-codecov
     - pip install .
 
 test:
   post:
-    - python codecov.py
+    - codecov

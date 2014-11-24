@@ -1,0 +1,22 @@
+environment:
+  CODECOV_TOKEN:
+    secure: Wcku+Is/ByqPirNCwecBLz/tvDn5fjvjzbDSMN/4D5YY+egzh4Da0ABY5FHIYe9u
+  PYTHONIOENCODING: utf-8
+
+  matrix:
+    - PYTHON: 'C:\\Python27'
+
+install:
+  - ps: Start-FileDownload 'https://raw.github.com/pypa/pip/master/contrib/get-pip.py'
+  - '%PYTHON%\\python.exe get-pip.py'
+  - '%PYTHON%\\Scripts\\easy_install.exe pyyaml'
+  - ps: Move-Item .git ..
+  - '%PYTHON%\\Scripts\\pip.exe install .'
+  - ps: Move-Item ..\\.git .
+
+build_script: '%PYTHON%\\Scripts\\pip.exe install pytest robpol86-codecov'
+
+test_script:
+  - '%PYTHON%\\python.exe setup.py test'
+
+after_test: 'cmd /C "%PYTHON%\\Scripts\\codecov.exe"'
